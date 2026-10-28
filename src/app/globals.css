@@ -1,0 +1,27 @@
+@import "tailwindcss";
+
+/* Tipografia do design system caseLeitura:
+   display (títulos)  → Cormorant Garamond
+   sans (interface)   → Montserrat
+   serif (leitura)    → EB Garamond */
+@theme inline {
+  --font-display: var(--font-cormorant), ui-serif, Georgia, serif;
+  --font-sans: var(--font-montserrat), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-eb-garamond), ui-serif, Georgia, serif;
+}
+
+/* Paleta caseLeitura: biblioteca de casa — papel creme, tinta, madeira e terracota. */
+@theme {
+  --color-paper: #f3eee3; /* Creme · fundo */
+  --color-paper-soft: #fbf8f1; /* Papel · cartões */
+  --color-ink: #24232b; /* Tinta · texto, botões */
+  --color-graphite: #5f5a52; /* Grafite · texto de apoio */
+  --color-coral: #d6604e; /* Terracota · destaque */
+  --color-coral-dark: #a8412f; /* Terracota escura · links */
+  --color-coral-soft: #f6dcd5;
+  --color-wood: #d9be9a; /* Madeira · estante */
+  --color-wood-dark: #b89a73;
+  --color-wood-soft: #efe3cf;
+  --color-sage: #5e8c8a; /* Sálvia · ilustrações, avatar */
+  --color-sage-soft: #dce8e6;
+}
