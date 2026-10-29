@@ -14,3 +14,12 @@ export function sortForShelf(books: BookCard[], status: ReadingStatus): BookCard
   };
   return [...books].sort((a, b) => key(b).localeCompare(key(a)));
 }
+
+/**
+ * Ordem da estante geral do início: lendo (últimas leituras primeiro), depois
+ * quero ler, lidos e abandonados — cada grupo na ordem da sua prateleira.
+ */
+export function sortForGallery(books: BookCard[]): BookCard[] {
+  const order: ReadingStatus[] = ["reading", "to_read", "finished", "abandoned"];
+  return order.flatMap((status) => sortForShelf(books.filter((b) => b.status === status), status));
+}

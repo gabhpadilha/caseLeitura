@@ -2,11 +2,11 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { ContinueReading } from "@/components/gallery/ContinueReading";
 import { BookGrid, LibrarySkeleton } from "@/components/gallery/BookGrid";
-import { Shelf } from "@/components/gallery/Shelf";
+import { Bookshelf } from "@/components/gallery/Bookshelf";
 import { matchesQuery } from "@/lib/books/format";
 import { getUserName, listBookCards } from "@/lib/books/queries";
-import { sortForShelf } from "@/lib/books/shelves";
-import { SHELVES, type BookCard } from "@/types/book";
+import { sortForGallery, sortForShelf } from "@/lib/books/shelves";
+import type { BookCard } from "@/types/book";
 
 // O shell da página é pré-renderizado; a estante (dados por usuário) chega via streaming.
 export default function InicioPage({ searchParams }: PageProps<"/">) {
@@ -53,20 +53,21 @@ async function Inicio({ searchParams }: Pick<PageProps<"/">, "searchParams">) {
   return (
     <div className="space-y-14">
       <ContinueReading name={name} book={pickFeatured(books)} />
-      {/* Ordem de destaque: o que está sendo lido, o que falta ler, o que já foi lido.
-          A navegação entre prateleiras fica no trilho lateral. */}
-      {SHELVES.map(({ slug, status, title }) => (
-        <Shelf
-          key={slug}
-          title={title}
-          href={`/estante/${slug}`}
-          showStatus
-          books={sortForShelf(
-            books.filter((b) => b.status === status),
-            status,
-          )}
-        />
-      ))}
+      {books.length > 0 && (
+        <section aria-labelledby="estante">
+          <div className="mb-8 flex items-baseline justify-between gap-4">
+            <h2 id="estante" className="font-display text-3xl font-medium sm:text-4xl">
+              Sua estante
+            </h2>
+            <span className="text-graphite">
+              {books.length} {books.length === 1 ? "livro" : "livros"}
+            </span>
+          </div>
+          {/* Galeria geral: o estado de cada livro vai no selo da capa; a
+              navegação por prateleira fica no trilho lateral. */}
+          <Bookshelf books={sortForGallery(books)} />
+        </section>
+      )}
     </div>
   );
 }
