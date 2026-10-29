@@ -26,3 +26,8 @@ export const AUTH_NOTICE: Record<string, string> = {
   link: "Esse link de confirmação expirou ou já foi usado. Entre com seu e-mail e senha, ou peça um novo link.",
   google: "Não foi possível entrar com o Google. Tente de novo.",
 };
+
+/** Avisos positivos vindos das rotas /auth/* via ?aviso=… */
+export const AUTH_SUCCESS: Record<string, string> = {
+  confirmado: "E-mail confirmado! Agora é só entrar com seu e-mail e senha.",
+};

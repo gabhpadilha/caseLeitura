@@ -3,7 +3,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Eye, EyeOff, Loader2, MailCheck } from "lucide-react";
-import { AUTH_NOTICE, authErrorMessage, isEmailNotConfirmed } from "@/lib/auth/messages";
+import { AUTH_NOTICE, AUTH_SUCCESS, authErrorMessage, isEmailNotConfirmed } from "@/lib/auth/messages";
 import { createClient } from "@/lib/supabase/client";
 
 type Mode = "entrar" | "cadastrar";
@@ -33,7 +33,9 @@ function GoogleIcon() {
 
 export function LoginForm() {
   const router = useRouter();
-  const notice = AUTH_NOTICE[useSearchParams().get("erro") ?? ""] ?? null;
+  const params = useSearchParams();
+  const notice = AUTH_NOTICE[params.get("erro") ?? ""] ?? null;
+  const success = AUTH_SUCCESS[params.get("aviso") ?? ""] ?? null;
 
   const [mode, setMode] = useState<Mode>("entrar");
   const [showPassword, setShowPassword] = useState(false);
@@ -194,6 +196,12 @@ export function LoginForm() {
             <span className="h-px flex-1 bg-ink/10" />
           </div>
         </>
+      )}
+
+      {success && !error && (
+        <p role="status" className="rounded-2xl bg-sage-soft px-4 py-3 text-sm text-[#2F5654]">
+          {success}
+        </p>
       )}
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-3">
