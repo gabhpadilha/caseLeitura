@@ -21,7 +21,7 @@ export function BookGrid({ books, showStatus = false }: BookGridProps) {
   );
 }
 
-/** Placeholder das páginas da estante: destaque (início) ou filtros (prateleiras) + prateleiras. */
+/** Placeholder das páginas da estante: destaque (início) ou título (prateleiras) + prateleiras. */
 export function LibrarySkeleton({ hero = true }: { hero?: boolean }) {
   return (
     <div className="animate-pulse space-y-14" aria-busy="true" aria-label="Carregando estante">
@@ -36,13 +36,7 @@ export function LibrarySkeleton({ hero = true }: { hero?: boolean }) {
           <div className="h-64 rounded-[2rem] bg-ink/5" />
         </div>
       )}
-      {!hero && (
-        <div className="flex gap-2.5">
-          {[0, 1, 2, 3].map((i) => (
-            <div key={i} className="h-10 w-28 rounded-full bg-ink/10" />
-          ))}
-        </div>
-      )}
+      {!hero && <div className="h-14 w-72 rounded-lg bg-ink/10" />}
       {[0, 1].map((shelf) => (
         <div key={shelf}>
           <div className="mb-5 h-9 w-48 rounded bg-ink/10" />

@@ -3,7 +3,6 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BookGrid, LibrarySkeleton } from "@/components/gallery/BookGrid";
 import { ReadDiary } from "@/components/gallery/ReadDiary";
-import { ShelfChips } from "@/components/gallery/ShelfChips";
 import { listBookCards } from "@/lib/books/queries";
 import { sortForShelf } from "@/lib/books/shelves";
 import { SHELVES } from "@/types/book";
@@ -42,7 +41,6 @@ async function Prateleira({ params }: Pick<PageProps<"/estante/[shelf]">, "param
           {list.length} {list.length === 1 ? "livro" : "livros"}
         </p>
       </header>
-      <ShelfChips books={books} active={shelf.slug} />
 
       {list.length === 0 ? (
         <div className="rounded-[2rem] bg-paper-soft px-8 py-16 text-center">
