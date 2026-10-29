@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { LoginForm } from "@/components/auth/LoginForm";
 import { LogoMark, Wordmark } from "@/components/brand/Logo";
 
@@ -15,7 +16,10 @@ export default function LoginPage() {
           </p>
         </div>
         <div className="rounded-[2rem] bg-paper-soft p-6 sm:p-8">
-          <LoginForm />
+          {/* O formulário lê ?erro= da URL (avisos das rotas /auth/*). */}
+          <Suspense fallback={<div className="h-64" aria-busy="true" />}>
+            <LoginForm />
+          </Suspense>
         </div>
       </div>
     </main>

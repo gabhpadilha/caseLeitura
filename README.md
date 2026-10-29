@@ -95,6 +95,27 @@ um aplicativo:
 
 Para redesenhar os ícones, edite e rode `node scripts/generate-icons.mjs`.
 
+## Cadastro e e-mails
+
+- **Cadastro** com nome, e-mail e senha. O nome vai nos metadados do usuário e o
+  gatilho do banco grava em `profiles.display_name` (a saudação "Boa leitura, …").
+- **Confirmação por e-mail**: o link volta para `/auth/confirm`, que valida o token
+  e já entra na conta. Links inválidos ou expirados caem em `/login?erro=link`.
+- **E-mail com a identidade visual**: [supabase/templates/confirm-signup.html](supabase/templates/confirm-signup.html).
+  No Supabase, em **Authentication → Emails → Templates → Confirm signup**:
+  - Assunto: `Confirme seu e-mail para abrir sua estante · caseLeitura`
+  - Corpo: cole o HTML do arquivo.
+  O link usa a **Site URL** (Authentication → URL Configuration), que precisa ser o
+  domínio publicado.
+- **Login com Google** (opcional): crie um OAuth Client do tipo *Web application* no
+  Google Cloud com o redirect `https://<ref>.supabase.co/auth/v1/callback`, ative o
+  provedor em **Authentication → Providers → Google** com o Client ID/Secret e
+  cadastre `NEXT_PUBLIC_AUTH_GOOGLE=on` na Vercel (novo deploy). O retorno passa por
+  `/auth/callback`.
+- **Remetente próprio** (recomendado): o servidor de e-mail padrão do Supabase envia
+  poucos e-mails por hora e com remetente genérico. Configure um SMTP (ex.: Resend)
+  em **Authentication → Emails → SMTP Settings** para enviar como caseLeitura.
+
 ## Deploy (Vercel)
 
 1. Suba o código para um repositório no GitHub.

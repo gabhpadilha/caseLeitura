@@ -65,6 +65,13 @@ export const getUserProfile = cache(async (): Promise<UserProfile> => {
   const displayName = profile?.display_name?.trim() || null;
   if (displayName) return { displayName, name: displayName, email };
 
+  // Login com Google: o nome vem em user_metadata (full_name/name); usa o primeiro nome.
+  const meta = (auth?.claims.user_metadata ?? {}) as Record<string, unknown>;
+  const fullName = [meta.display_name, meta.full_name, meta.name].find(
+    (v): v is string => typeof v === "string" && v.trim().length > 0,
+  );
+  if (fullName) return { displayName: null, name: fullName.trim().split(/\s+/)[0], email };
+
   const local = email?.split("@")[0].split(/[._-]/)[0];
   const fromEmail = local ? local.charAt(0).toUpperCase() + local.slice(1) : null;
   return { displayName: null, name: fromEmail, email };

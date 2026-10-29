@@ -1,0 +1,101 @@
+<!doctype html>
+<!--
+  caseLeitura · e-mail de confirmação de cadastro (Supabase Auth → Email Templates → Confirm signup)
+  Assunto sugerido: Confirme seu e-mail para abrir sua estante · caseLeitura
+
+  Variáveis do Supabase usadas: .SiteURL, .TokenHash e .Data.display_name (nome do cadastro).
+  O link aponta para /auth/confirm do próprio site, que valida o token e já entra na conta.
+  E-mail não é web: layout em tabelas, estilos inline, sem SVG; fontes do site com Georgia de reserva.
+-->
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light only" />
+    <title>Confirme seu e-mail · caseLeitura</title>
+  </head>
+  <body style="margin:0; padding:0; background-color:#F3EEE3;">
+    <!-- Texto de pré-visualização (aparece ao lado do assunto na caixa de entrada) -->
+    <div style="display:none; max-height:0; overflow:hidden; opacity:0;">
+      Falta só um passo para abrir a sua estante no caseLeitura.
+    </div>
+
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#F3EEE3;">
+      <tr>
+        <td align="center" style="padding:40px 16px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:520px;">
+            <!-- Marca -->
+            <tr>
+              <td align="center" style="padding-bottom:28px;">
+                <img
+                  src="https://case-leitura.vercel.app/icons/icon-192.png"
+                  width="56"
+                  height="56"
+                  alt=""
+                  style="display:block; border:0; border-radius:14px;"
+                />
+                <p style="margin:14px 0 0; font-family:'Cormorant Garamond', Georgia, 'Times New Roman', serif; font-size:34px; line-height:1; color:#24232B; font-weight:600; letter-spacing:-0.5px;">
+                  <span style="color:#D6604E; font-style:italic; font-weight:500;">case</span>Leitura
+                </p>
+              </td>
+            </tr>
+
+            <!-- Cartão -->
+            <tr>
+              <td style="background-color:#FBF8F1; border-radius:28px; padding:40px 36px;">
+                <h1 style="margin:0 0 16px; font-family:'Cormorant Garamond', Georgia, 'Times New Roman', serif; font-size:32px; line-height:1.15; font-weight:600; color:#24232B;">
+                  {{ if .Data.display_name }}Olá, {{ .Data.display_name }}!{{ else }}Olá!{{ end }}
+                </h1>
+                <p style="margin:0 0 28px; font-family:Montserrat, 'Helvetica Neue', Arial, sans-serif; font-size:15px; line-height:1.65; color:#5F5A52;">
+                  Falta só um passo para abrir a sua estante. Confirme seu e-mail para começar a guardar
+                  seus livros, acompanhar suas leituras e escrever suas resenhas.
+                </p>
+
+                <!-- Botão (tabela: funciona também no Outlook) -->
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                  <tr>
+                    <td align="center" bgcolor="#24232B" style="border-radius:999px;">
+                      <a
+                        href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email"
+                        target="_blank"
+                        style="display:inline-block; padding:15px 30px; font-family:Montserrat, 'Helvetica Neue', Arial, sans-serif; font-size:15px; font-weight:600; color:#FBF8F1; text-decoration:none; border-radius:999px;"
+                        >Confirmar meu e-mail &rarr;</a
+                      >
+                    </td>
+                  </tr>
+                </table>
+
+                <!-- Prateleira decorativa -->
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:36px 0 24px;">
+                  <tr><td style="height:6px; background-color:#E8D3B0; border-radius:3px 3px 0 0; font-size:0; line-height:0;">&nbsp;</td></tr>
+                  <tr><td style="height:8px; background-color:#C29B70; border-radius:0 0 3px 3px; font-size:0; line-height:0;">&nbsp;</td></tr>
+                </table>
+
+                <p style="margin:0 0 6px; font-family:Montserrat, 'Helvetica Neue', Arial, sans-serif; font-size:12px; line-height:1.6; color:#5F5A52;">
+                  O botão não funcionou? Copie e cole este link no navegador:
+                </p>
+                <p style="margin:0 0 20px; font-family:Montserrat, 'Helvetica Neue', Arial, sans-serif; font-size:12px; line-height:1.6; word-break:break-all;">
+                  <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email" style="color:#A8412F;"
+                    >{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=email</a
+                  >
+                </p>
+                <p style="margin:0; font-family:Montserrat, 'Helvetica Neue', Arial, sans-serif; font-size:12px; line-height:1.6; color:#8C8475;">
+                  Se você não criou uma conta no caseLeitura, pode ignorar este e-mail.
+                </p>
+              </td>
+            </tr>
+
+            <!-- Rodapé -->
+            <tr>
+              <td align="center" style="padding-top:24px;">
+                <p style="margin:0; font-family:'Cormorant Garamond', Georgia, 'Times New Roman', serif; font-size:16px; font-style:italic; color:#5F5A52;">
+                  A casa dos seus livros: lidos, lendo e por ler.
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
