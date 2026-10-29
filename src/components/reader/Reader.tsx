@@ -6,7 +6,8 @@ import { ChevronLeft, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { parseBlocks, type TextBlock } from "@/lib/reader/blocks";
 import { HEADING_CLASSES, readerTextClasses, THEME_CLASSES } from "@/lib/reader/styles";
-import type { Book } from "@/types/book";
+import { progressPatch, saveProgress, sendProgressOnExit } from "@/lib/books/progress";
+import type { Book, BookUpdate } from "@/types/book";
 import { settingsToRow, type ReaderSettings } from "@/types/reader";
 import { ReaderSettingsPanel } from "./ReaderSettingsPanel";
 import { ReaderToolbar } from "./ReaderToolbar";
@@ -104,22 +105,69 @@ export function Reader({ book, contentUrl, initialSettings }: ReaderProps) {
     return () => clearTimeout(t);
   }, [settings, supabase]);
 
-  // Grava o progresso só depois que o leitor virou alguma página.
+  // Progresso: grava só depois que o leitor virou alguma página.
   const turnedPage = useRef(false);
+  // Status/início como estão no banco agora (mudam após a 1ª gravação).
+  const statusRef = useRef(book.status);
+  const startedAtRef = useRef(book.started_at);
+  // Fração ainda não confirmada no banco (null = nada pendente).
+  const pendingRef = useRef<number | null>(null);
+  // Token da sessão para o envio de saída (que não pode esperar o getSession).
+  const tokenRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      tokenRef.current = session?.access_token ?? null;
+    });
+    return () => data.subscription.unsubscribe();
+  }, [supabase]);
+
+  const markSaved = (patch: BookUpdate) => {
+    if (patch.status) statusRef.current = patch.status;
+    if (patch.started_at) startedAtRef.current = patch.started_at;
+  };
+
+  // Durante a leitura: grava após uma pausa nas viradas de página.
   useEffect(() => {
     if (!turnedPage.current) return;
-    const t = setTimeout(() => {
-      void supabase
-        .from("books")
-        .update({
-          progress: Math.round(fraction * 10000) / 100,
-          last_read_at: new Date().toISOString(),
-          ...(book.status === "to_read" ? { status: "reading" as const } : {}),
-        })
-        .eq("id", book.id);
+    pendingRef.current = fraction;
+    const t = setTimeout(async () => {
+      // O envio de saída (troca de app) pode já ter gravado esta posição.
+      if (pendingRef.current !== fraction) return;
+      const patch = progressPatch(fraction, statusRef.current, startedAtRef.current);
+      try {
+        await saveProgress(supabase, book.id, patch);
+        markSaved(patch);
+        if (pendingRef.current === fraction) pendingRef.current = null;
+      } catch (err) {
+        console.error("Não foi possível salvar o progresso", err);
+      }
     }, SAVE_DELAY_MS);
     return () => clearTimeout(t);
-  }, [fraction, book.id, book.status, supabase]);
+  }, [fraction, book.id, supabase]);
+
+  // Ao sair do leitor, trocar de app ou fechar o app: envia o que estiver pendente.
+  useEffect(() => {
+    const flush = () => {
+      const pending = pendingRef.current;
+      const token = tokenRef.current;
+      if (pending === null || !token) return;
+      const patch = progressPatch(pending, statusRef.current, startedAtRef.current);
+      sendProgressOnExit(book.id, patch, token);
+      markSaved(patch);
+      pendingRef.current = null;
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") flush();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("pagehide", flush);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("pagehide", flush);
+      flush(); // desmontagem = saiu do leitor (Voltar, estante…)
+    };
+  }, [book.id]);
 
   const turn = (direction: 1 | -1, { immersive = true } = {}) => {
     turnedPage.current = true;

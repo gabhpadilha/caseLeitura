@@ -85,7 +85,10 @@ export function usePagination({ initialFraction, layoutKey, enabled }: UsePagina
     const pitch = width / columns;
     const lastColumn = Math.max(0, Math.floor((offset - padding) / pitch + 0.01));
     const count = Math.ceil((lastColumn + 1) / columns);
-    const target = clamp(Math.ceil(fractionRef.current * count) - 1, 0, count - 1);
+    // A fração marca o fim da página lida. O banco guarda o progresso com duas
+    // casas (3/7 = 42,857…% vira 42,86%), então o valor volta um pouco acima do
+    // exato; sem a folga de 0,1 página, o ceil pularia para a página seguinte.
+    const target = clamp(Math.ceil(fractionRef.current * count - 0.1) - 1, 0, count - 1);
 
     smoothRef.current = false; // reposicionamento por mudança de layout não anima
     setPageCount(count);
