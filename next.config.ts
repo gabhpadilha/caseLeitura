@@ -5,6 +5,9 @@ const nextConfig: NextConfig = {
   cacheComponents: true,
   partialPrefetching: true,
   turbopack: {
+    // Raiz explícita: há um package-lock.json solto em ~ e, sem isto, o
+    // Turbopack precisa adivinhar a raiz (e observar arquivos fora do projeto).
+    root: __dirname,
     rules: {
       "*.css": {
         loaders: ["@tailwindcss/turbopack"],

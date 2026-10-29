@@ -6,6 +6,7 @@ import { StatusBadge } from "@/components/gallery/StatusBadge";
 import { formatDate, formatPercent, readingDuration, readingTime } from "@/lib/books/format";
 import type { BookDetail } from "@/types/book";
 import { DeleteBookButton } from "./DeleteBookButton";
+import { EditBookButton } from "./EditBookButton";
 import { ReprocessButton } from "./ReprocessButton";
 import { ReviewCard } from "./ReviewCard";
 import { StatusPicker } from "./StatusPicker";
@@ -114,6 +115,7 @@ export function BookDetailView({ data }: BookDetailViewProps) {
                 <Download className="size-[1.15rem]" aria-hidden />
               </a>
             )}
+            <EditBookButton book={book} className={circleButton} />
             <DeleteBookButton book={book} className={`${circleButton} hover:text-coral-dark`} />
           </div>
 

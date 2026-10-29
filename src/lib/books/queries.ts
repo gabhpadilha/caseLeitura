@@ -1,5 +1,6 @@
 import "server-only";
 
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { BOOKS_BUCKET, type Book, type BookCard, type BookDetail } from "@/types/book";
 import { settingsFromRow, type ReaderSettings } from "@/types/reader";
@@ -44,19 +45,34 @@ export async function listBookCards(): Promise<BookCard[]> {
   });
 }
 
-/** Nome para a saudação: display_name do perfil ou a parte local do e-mail. */
-export async function getUserName(): Promise<string | null> {
+export interface UserProfile {
+  /** Nome escolhido pelo usuário (profiles.display_name), se houver. */
+  displayName: string | null;
+  /** Nome para exibir: o escolhido ou, sem ele, a parte local do e-mail. */
+  name: string | null;
+  email: string | null;
+}
+
+/** Memoizado por requisição: o cabeçalho e o início pedem o perfil na mesma página. */
+export const getUserProfile = cache(async (): Promise<UserProfile> => {
   const supabase = await createClient();
   const [{ data: auth }, { data: profile }] = await Promise.all([
     supabase.auth.getClaims(),
     supabase.from("profiles").select("display_name").maybeSingle(),
   ]);
 
-  if (profile?.display_name) return profile.display_name;
-  const email = auth?.claims.email;
-  if (typeof email !== "string") return null;
-  const local = email.split("@")[0].split(/[._-]/)[0];
-  return local ? local.charAt(0).toUpperCase() + local.slice(1) : null;
+  const email = typeof auth?.claims.email === "string" ? auth.claims.email : null;
+  const displayName = profile?.display_name?.trim() || null;
+  if (displayName) return { displayName, name: displayName, email };
+
+  const local = email?.split("@")[0].split(/[._-]/)[0];
+  const fromEmail = local ? local.charAt(0).toUpperCase() + local.slice(1) : null;
+  return { displayName: null, name: fromEmail, email };
+});
+
+/** Nome para a saudação. */
+export async function getUserName(): Promise<string | null> {
+  return (await getUserProfile()).name;
 }
 
 export async function getBookDetail(bookId: string): Promise<BookDetail | null> {
