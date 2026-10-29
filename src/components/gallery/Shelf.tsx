@@ -7,6 +7,8 @@ interface ShelfProps {
   books: BookCardData[];
   /** Link "Ver prateleira →" para a página completa. */
   href: string;
+  /** Mini tag de estado sobre as capas. */
+  showStatus?: boolean;
 }
 
 /** Tábua de madeira da estante (topo claro, borda inferior mais escura). */
@@ -20,7 +22,7 @@ export function Plank() {
 }
 
 /** Prateleira com rolagem horizontal e a tábua de madeira embaixo das capas. */
-export function Shelf({ title, books, href }: ShelfProps) {
+export function Shelf({ title, books, href, showStatus = false }: ShelfProps) {
   if (books.length === 0) return null;
 
   return (
@@ -34,7 +36,7 @@ export function Shelf({ title, books, href }: ShelfProps) {
       <ul className="flex snap-x items-end gap-6 overflow-x-auto px-6 pt-2 pb-3 [scrollbar-width:none] sm:gap-10">
         {books.map((book) => (
           <li key={book.id} className="w-28 shrink-0 snap-start sm:w-36">
-            <BookCard book={book} variant="shelf" />
+            <BookCard book={book} variant="shelf" showStatus={showStatus} />
           </li>
         ))}
       </ul>

@@ -5,21 +5,23 @@ const GRID = "grid grid-cols-2 gap-x-6 gap-y-10 sm:grid-cols-3 md:grid-cols-4 lg
 
 interface BookGridProps {
   books: BookCardData[];
+  /** Mini tag de estado sobre as capas (útil quando a grade mistura estados). */
+  showStatus?: boolean;
 }
 
-export function BookGrid({ books }: BookGridProps) {
+export function BookGrid({ books, showStatus = false }: BookGridProps) {
   return (
     <ul className={GRID}>
       {books.map((book) => (
         <li key={book.id}>
-          <BookCard book={book} variant="grid" />
+          <BookCard book={book} variant="grid" showStatus={showStatus} />
         </li>
       ))}
     </ul>
   );
 }
 
-/** Placeholder das páginas da estante: destaque/título + prateleiras. */
+/** Placeholder das páginas da estante: destaque (início) ou filtros (prateleiras) + prateleiras. */
 export function LibrarySkeleton({ hero = true }: { hero?: boolean }) {
   return (
     <div className="animate-pulse space-y-14" aria-busy="true" aria-label="Carregando estante">
@@ -34,11 +36,13 @@ export function LibrarySkeleton({ hero = true }: { hero?: boolean }) {
           <div className="h-64 rounded-[2rem] bg-ink/5" />
         </div>
       )}
-      <div className="flex gap-2.5">
-        {[0, 1, 2, 3].map((i) => (
-          <div key={i} className="h-10 w-28 rounded-full bg-ink/10" />
-        ))}
-      </div>
+      {!hero && (
+        <div className="flex gap-2.5">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="h-10 w-28 rounded-full bg-ink/10" />
+          ))}
+        </div>
+      )}
       {[0, 1].map((shelf) => (
         <div key={shelf}>
           <div className="mb-5 h-9 w-48 rounded bg-ink/10" />

@@ -3,7 +3,6 @@ import Link from "next/link";
 import { ContinueReading } from "@/components/gallery/ContinueReading";
 import { BookGrid, LibrarySkeleton } from "@/components/gallery/BookGrid";
 import { Shelf } from "@/components/gallery/Shelf";
-import { ShelfChips } from "@/components/gallery/ShelfChips";
 import { matchesQuery } from "@/lib/books/format";
 import { getUserName, listBookCards } from "@/lib/books/queries";
 import { sortForShelf } from "@/lib/books/shelves";
@@ -41,7 +40,7 @@ async function Inicio({ searchParams }: Pick<PageProps<"/">, "searchParams">) {
           {results.length > 0 ? `Resultados para “${query}”` : `Nada encontrado para “${query}”`}
         </h1>
         {results.length > 0 ? (
-          <BookGrid books={results} />
+          <BookGrid books={results} showStatus />
         ) : (
           <Link href="/" className="text-sm font-semibold text-coral-dark underline underline-offset-4">
             Voltar para a estante
@@ -54,12 +53,14 @@ async function Inicio({ searchParams }: Pick<PageProps<"/">, "searchParams">) {
   return (
     <div className="space-y-14">
       <ContinueReading name={name} book={pickFeatured(books)} />
-      {books.length > 0 && <ShelfChips books={books} active={null} />}
+      {/* Ordem de destaque: o que está sendo lido, o que falta ler, o que já foi lido.
+          A navegação entre prateleiras fica no trilho lateral. */}
       {SHELVES.map(({ slug, status, title }) => (
         <Shelf
           key={slug}
           title={title}
           href={`/estante/${slug}`}
+          showStatus
           books={sortForShelf(
             books.filter((b) => b.status === status),
             status,

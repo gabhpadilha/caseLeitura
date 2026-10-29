@@ -3,6 +3,7 @@ import { Star, TriangleAlert } from "lucide-react";
 import { formatPercent, formatRating, readingTime } from "@/lib/books/format";
 import type { BookCard as BookCardData } from "@/types/book";
 import { BookCover } from "./BookCover";
+import { StatusBadge } from "./StatusBadge";
 
 interface BookCardProps {
   book: BookCardData;
@@ -11,6 +12,13 @@ interface BookCardProps {
    * barra de progresso ou a nota embaixo. "grid": capa + título + autor.
    */
   variant?: "shelf" | "grid";
+  /** Mini tag com o estado (Lendo, Quero ler, Lido) sobre a capa. */
+  showStatus?: boolean;
+}
+
+function statusLabel(book: BookCardData): string | undefined {
+  if (book.status === "reading" && book.progress > 0) return `Lendo · ${formatPercent(book.progress)}`;
+  return undefined; // usa o rótulo padrão do status
 }
 
 function Meta({ book }: { book: BookCardData }) {
@@ -44,7 +52,7 @@ function Meta({ book }: { book: BookCardData }) {
   return null;
 }
 
-export function BookCard({ book, variant = "shelf" }: BookCardProps) {
+export function BookCard({ book, variant = "shelf", showStatus = false }: BookCardProps) {
   const label = `${book.title}${book.author ? `, de ${book.author}` : ""}`;
 
   return (
@@ -54,13 +62,21 @@ export function BookCard({ book, variant = "shelf" }: BookCardProps) {
       title={variant === "shelf" ? label : undefined}
       className="group block rounded-md outline-none"
     >
-      <BookCover
-        title={book.title}
-        author={book.author}
-        coverUrl={book.coverUrl}
-        seed={book.id}
-        className="w-full transition-transform duration-300 group-hover:-translate-y-1.5 group-focus-visible:outline-2 group-focus-visible:outline-offset-4 group-focus-visible:outline-coral"
-      />
+      {/* A tag fica fora da capa (que tem overflow oculto) e sobe junto no hover. */}
+      <div className="relative transition-transform duration-300 group-hover:-translate-y-1.5">
+        <BookCover
+          title={book.title}
+          author={book.author}
+          coverUrl={book.coverUrl}
+          seed={book.id}
+          className="w-full group-focus-visible:outline-2 group-focus-visible:outline-offset-4 group-focus-visible:outline-coral"
+        />
+        {showStatus && (
+          <span className="absolute top-2 left-2 max-w-[calc(100%-1rem)]">
+            <StatusBadge status={book.status} label={statusLabel(book)} size="sm" />
+          </span>
+        )}
+      </div>
       {variant === "shelf" ? (
         <div className="mt-3 min-h-5">
           <Meta book={book} />
