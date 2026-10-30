@@ -73,6 +73,7 @@ export type Database = {
           description: string | null;
           status: Database["public"]["Enums"]["reading_status"];
           processing_status: Database["public"]["Enums"]["processing_status"];
+          kind: Database["public"]["Enums"]["book_kind"];
           pdf_path: string;
           cover_path: string | null;
           content_path: string | null;
@@ -93,6 +94,7 @@ export type Database = {
           description?: string | null;
           status?: Database["public"]["Enums"]["reading_status"];
           processing_status?: Database["public"]["Enums"]["processing_status"];
+          kind?: Database["public"]["Enums"]["book_kind"];
           pdf_path: string;
           cover_path?: string | null;
           content_path?: string | null;
@@ -113,6 +115,7 @@ export type Database = {
           description?: string | null;
           status?: Database["public"]["Enums"]["reading_status"];
           processing_status?: Database["public"]["Enums"]["processing_status"];
+          kind?: Database["public"]["Enums"]["book_kind"];
           pdf_path?: string;
           cover_path?: string | null;
           content_path?: string | null;
@@ -212,6 +215,7 @@ export type Database = {
     Enums: {
       reading_status: "to_read" | "reading" | "finished" | "abandoned";
       processing_status: "pending" | "ready" | "failed";
+      book_kind: "book" | "comic";
       reader_theme:
         | "light"
         | "dark"

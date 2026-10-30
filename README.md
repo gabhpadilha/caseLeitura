@@ -80,6 +80,22 @@ O texto é extraído **no navegador**, antes do upload:
 Só fica com `processing_status = 'failed'` o PDF em que nem o OCR acha texto. Livros
 enviados antes ganham ilustrações e OCR pelo botão "Reprocessar texto".
 
+## Quadrinhos
+
+`/quadrinhos` é a banca: página só dos gibis, com identidade própria de revistaria
+(fontes Bangers e Comic Neue, cores `hq-*` em `globals.css`). Quadrinhos ficam na mesma
+tabela `books`, com `kind = 'comic'` (migration `20261030000000_comics.sql`).
+
+- **Envio** (`lib/comics/upload.ts`): não há extração de texto. PDF → cada página
+  renderizada em WebP/JPEG (1600 px); CBZ → as imagens do zip na ordem natural dos nomes,
+  sem recompressão, com título/autor do `ComicInfo.xml`. As páginas vão para
+  `books/{user_id}/{book_id}/pages/0001.webp…`.
+- **Leitor** (`components/comics/ComicReader.tsx`): página inteira sobre fundo escuro;
+  deitado, duas páginas lado a lado (capa sozinha). Toque nas laterais ou deslize para
+  virar, toque duplo no centro para zoom, faixa de miniaturas.
+- **Filtros** (`lib/comics/filters.ts`): Original, Papel, Sépia e Noite, com intensidade.
+  Ficam salvos no aparelho (localStorage).
+
 ## Leitor paginado
 
 A paginação é calculada **por tela**, não pelas páginas do PDF

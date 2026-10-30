@@ -2,7 +2,15 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Bookmark, BookOpen, House, LogOut, NotebookPen, type LucideIcon } from "lucide-react";
+import {
+  Bookmark,
+  BookOpen,
+  House,
+  LogOut,
+  MessageCircleMore,
+  NotebookPen,
+  type LucideIcon,
+} from "lucide-react";
 import { LogoMark } from "@/components/brand/Logo";
 import { createClient } from "@/lib/supabase/client";
 
@@ -17,6 +25,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/estante/lendo", label: "Lendo agora", icon: BookOpen },
   { href: "/estante/quero-ler", label: "Quero ler", icon: Bookmark },
   { href: "/estante/lidos", label: "Lidos e resenhas", icon: NotebookPen },
+  { href: "/quadrinhos", label: "Quadrinhos", icon: MessageCircleMore },
 ];
 
 function isActive(pathname: string | null, href: string) {

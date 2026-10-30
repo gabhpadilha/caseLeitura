@@ -8,6 +8,9 @@
   --font-display: var(--font-cormorant), ui-serif, Georgia, serif;
   --font-sans: var(--font-montserrat), ui-sans-serif, system-ui, sans-serif;
   --font-serif: var(--font-eb-garamond), ui-serif, Georgia, serif;
+  /* Banca de quadrinhos (só em /quadrinhos): letreiro de HQ e letra de balão. */
+  --font-hq: var(--font-bangers), Impact, sans-serif;
+  --font-balloon: var(--font-comic-neue), "Comic Sans MS", sans-serif;
 }
 
 /* Paleta caseLeitura: biblioteca de casa — papel creme, tinta, madeira e terracota. */
@@ -24,4 +27,11 @@
   --color-wood-soft: #efe3cf;
   --color-sage: #5e8c8a; /* Sálvia · ilustrações, avatar */
   --color-sage-soft: #dce8e6;
+
+  /* Banca de quadrinhos: cores primárias de gibi, contorno preto e papel jornal. */
+  --color-hq-red: #e23b2e;
+  --color-hq-yellow: #ffd23f;
+  --color-hq-blue: #1d5fbf;
+  --color-hq-ink: #141414;
+  --color-hq-cream: #fff6e0;
 }

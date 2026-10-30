@@ -5,10 +5,10 @@ import { useRouter } from "next/navigation";
 import { Loader2, Trash2 } from "lucide-react";
 import { Modal, modalSecondaryButton } from "@/components/ui/Modal";
 import { deleteBook } from "@/lib/books/delete";
-import type { Book } from "@/types/book";
+import { isComic, type Book } from "@/types/book";
 
 interface DeleteBookButtonProps {
-  book: Pick<Book, "id" | "title" | "pdf_path" | "cover_path" | "content_path">;
+  book: Pick<Book, "id" | "title" | "kind" | "pdf_path" | "cover_path" | "content_path">;
   className?: string;
 }
 
@@ -25,7 +25,7 @@ export function DeleteBookButton({ book, className = "" }: DeleteBookButtonProps
     try {
       await deleteBook(book);
       setOpen(false);
-      router.replace("/");
+      router.replace(isComic(book) ? "/quadrinhos" : "/");
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Algo deu errado.");

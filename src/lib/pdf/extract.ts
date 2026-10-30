@@ -57,7 +57,7 @@ const OCR_MIN_WORDS = 12;
 let pdfjsPromise: Promise<typeof import("pdfjs-dist")> | null = null;
 
 /** Import dinâmico: o pdf.js depende de APIs do browser e não pode entrar no SSR. */
-function loadPdfjs() {
+export function loadPdfjs() {
   pdfjsPromise ??= import("pdfjs-dist").then((pdfjs) => {
     pdfjs.GlobalWorkerOptions.workerSrc = new URL(
       "pdfjs-dist/build/pdf.worker.min.mjs",

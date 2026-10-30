@@ -2,7 +2,14 @@ import "server-only";
 
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
-import { BOOKS_BUCKET, bookFolder, type Book, type BookCard, type BookDetail } from "@/types/book";
+import {
+  BOOKS_BUCKET,
+  bookFolder,
+  type Book,
+  type BookCard,
+  type BookDetail,
+  type BookKind,
+} from "@/types/book";
 import { settingsFromRow, type ReaderSettings } from "@/types/reader";
 
 const SIGNED_URL_TTL = 60 * 60; // 1h
@@ -21,17 +28,29 @@ async function signPaths(supabase: ServerClient, paths: (string | null)[]) {
   return new Map((data ?? []).flatMap((s) => (s.path && s.signedUrl ? [[s.path, s.signedUrl]] : [])));
 }
 
-/** Livros do usuário para a galeria (com nota e resenha), mais recentes primeiro. */
-export async function listBookCards(): Promise<BookCard[]> {
+const CARD_COLUMNS =
+  "id, title, author, status, progress, processing_status, page_count, word_count, last_read_at, created_at, started_at, finished_at, cover_path, reviews(rating, content)";
+
+/** Coluna inexistente: o banco ainda não recebeu a migration dos quadrinhos. */
+const UNDEFINED_COLUMN = "42703";
+
+/**
+ * Itens do usuário para a galeria (com nota e resenha), mais recentes primeiro:
+ * livros para a estante, quadrinhos para a banca.
+ */
+export async function listBookCards(kind: BookKind = "book"): Promise<BookCard[]> {
   const supabase = await createClient();
 
-  const { data: books, error } = await supabase
-    .from("books")
-    .select(
-      "id, title, author, status, progress, processing_status, page_count, word_count, last_read_at, created_at, started_at, finished_at, cover_path, reviews(rating, content)",
-    )
-    .order("created_at", { ascending: false });
+  const query = () =>
+    supabase.from("books").select(CARD_COLUMNS).order("created_at", { ascending: false });
+  let { data: books, error } = await query().eq("kind", kind);
+  // Antes da migration (sem a coluna `kind`) tudo é livro.
+  if (error?.code === UNDEFINED_COLUMN) {
+    if (kind === "comic") return [];
+    ({ data: books, error } = await query());
+  }
   if (error) throw error;
+  if (!books) return [];
 
   const urlByPath = await signPaths(supabase, books.map((b) => b.cover_path));
 
@@ -96,7 +115,9 @@ export async function getBookDetail(bookId: string): Promise<BookDetail | null> 
   const bucket = supabase.storage.from(BOOKS_BUCKET);
   const [covers, pdf] = await Promise.all([
     signPaths(supabase, [book.cover_path]),
-    bucket.createSignedUrl(book.pdf_path, SIGNED_URL_TTL, { download: `${book.title}.pdf` }),
+    bucket.createSignedUrl(book.pdf_path, SIGNED_URL_TTL, {
+      download: `${book.title}.${book.pdf_path.split(".").pop() ?? "pdf"}`,
+    }),
   ]);
 
   return {
@@ -155,4 +176,27 @@ export async function getReaderData(bookId: string): Promise<ReaderData | null> 
     contentUrl: content?.signedUrl ?? null,
     imageUrls,
   };
+}
+
+/** Signed URLs das páginas de um quadrinho, na ordem. */
+export async function getComicPages(book: Pick<Book, "pdf_path">): Promise<string[]> {
+  const supabase = await createClient();
+  const bucket = supabase.storage.from(BOOKS_BUCKET);
+  const folder = `${bookFolder(book.pdf_path)}/pages`;
+
+  const { data: files } = await bucket.list(folder, {
+    limit: 2000,
+    sortBy: { column: "name", order: "asc" },
+  });
+  const names = (files ?? [])
+    .filter((f) => f.id)
+    .map((f) => f.name)
+    .sort((a, b) => a.localeCompare(b, "en", { numeric: true }));
+  if (names.length === 0) return [];
+
+  const { data: signed } = await bucket.createSignedUrls(
+    names.map((name) => `${folder}/${name}`),
+    IMAGE_URL_TTL,
+  );
+  return (signed ?? []).flatMap((s) => (s.signedUrl ? [s.signedUrl] : []));
 }

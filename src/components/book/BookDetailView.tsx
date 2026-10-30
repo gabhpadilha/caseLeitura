@@ -4,7 +4,7 @@ import { ArrowUpRight, ChevronLeft, Download, Star, TriangleAlert } from "lucide
 import { BookCover } from "@/components/gallery/BookCover";
 import { StatusBadge } from "@/components/gallery/StatusBadge";
 import { formatDate, formatPercent, readingDuration, readingTime } from "@/lib/books/format";
-import type { BookDetail } from "@/types/book";
+import { isComic, type BookDetail } from "@/types/book";
 import { DeleteBookButton } from "./DeleteBookButton";
 import { EditBookButton } from "./EditBookButton";
 import { ReprocessButton } from "./ReprocessButton";
@@ -29,12 +29,14 @@ export function BookDetailView({ data }: BookDetailViewProps) {
   const started = book.progress > 0;
   const finished = book.status === "finished";
   const rating = review?.rating ?? null;
+  const comic = isComic(book);
+  const format = comic ? (book.pdf_path.endsWith(".cbz") ? "CBZ" : "PDF") : "PDF";
 
   const action = finished ? "Reler" : started ? `Continuar lendo · ${formatPercent(book.progress)}` : "Começar a ler";
 
   const details = [
     { label: "Progresso", value: started ? formatPercent(book.progress) : "Não iniciado" },
-    { label: "Páginas no PDF", value: book.page_count?.toLocaleString("pt-BR") },
+    { label: comic ? "Páginas" : "Páginas no PDF", value: book.page_count?.toLocaleString("pt-BR") },
     { label: "Palavras", value: book.word_count?.toLocaleString("pt-BR") },
     { label: "Tempo de leitura", value: readingTime(book.word_count) && `≈ ${readingTime(book.word_count)}` },
     { label: "Começou em", value: formatDate(book.started_at) },
@@ -49,10 +51,10 @@ export function BookDetailView({ data }: BookDetailViewProps) {
   return (
     <article>
       <Link
-        href="/"
+        href={comic ? "/quadrinhos" : "/"}
         className="inline-flex items-center gap-1 font-semibold text-coral-dark hover:underline"
       >
-        <ChevronLeft className="size-5" aria-hidden /> Minha estante
+        <ChevronLeft className="size-5" aria-hidden /> {comic ? "Meus quadrinhos" : "Minha estante"}
       </Link>
 
       <header className="mt-10 grid gap-10 md:grid-cols-[auto_1fr] md:items-center lg:gap-16">
@@ -67,7 +69,8 @@ export function BookDetailView({ data }: BookDetailViewProps) {
         <div>
           <div className="flex flex-wrap gap-2">
             <StatusBadge status={book.status} />
-            {book.page_count && <Chip>PDF · {book.page_count} páginas</Chip>}
+            {comic && <Chip>Quadrinho</Chip>}
+            {book.page_count && <Chip>{format} · {book.page_count} páginas</Chip>}
             {finished && finishedLabel && <Chip>Terminado em {finishedLabel}</Chip>}
             {finished && duration && <Chip>{duration}</Chip>}
           </div>
@@ -111,7 +114,12 @@ export function BookDetailView({ data }: BookDetailViewProps) {
               </p>
             )}
             {pdfUrl && (
-              <a href={pdfUrl} title="Baixar PDF original" aria-label="Baixar PDF original" className={circleButton}>
+              <a
+                href={pdfUrl}
+                title={`Baixar ${format} original`}
+                aria-label={`Baixar ${format} original`}
+                className={circleButton}
+              >
                 <Download className="size-[1.15rem]" aria-hidden />
               </a>
             )}
@@ -140,9 +148,11 @@ export function BookDetailView({ data }: BookDetailViewProps) {
               </div>
             ))}
           </dl>
-          <div className="mt-8">
-            <ReprocessButton book={book} />
-          </div>
+          {!comic && (
+            <div className="mt-8">
+              <ReprocessButton book={book} />
+            </div>
+          )}
         </section>
       </div>
     </article>

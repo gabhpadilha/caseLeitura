@@ -21,6 +21,10 @@ export async function deleteBook(
   );
   // Melhor esforço: o livro já sumiu da estante.
   const bucket = supabase.storage.from(BOOKS_BUCKET);
-  const images = await listFolder(bucket, `${bookFolder(book.pdf_path)}/images`);
-  await bucket.remove([...paths, ...images]);
+  const folder = bookFolder(book.pdf_path);
+  const [images, pages] = await Promise.all([
+    listFolder(bucket, `${folder}/images`),
+    listFolder(bucket, `${folder}/pages`),
+  ]);
+  await bucket.remove([...paths, ...images, ...pages]);
 }

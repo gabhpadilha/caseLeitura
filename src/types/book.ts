@@ -6,8 +6,14 @@ import type { Enums, Tables, TablesInsert, TablesUpdate } from "./database";
 
 export type ReadingStatus = Enums<"reading_status">;
 export type ProcessingStatus = Enums<"processing_status">;
+export type BookKind = Enums<"book_kind">;
 
 export type Book = Tables<"books">;
+
+/** Itens sem a coluna `kind` (banco antes da migration dos quadrinhos) são livros. */
+export function isComic(book: Pick<Book, "kind">): boolean {
+  return book.kind === "comic";
+}
 export type BookInsert = TablesInsert<"books">;
 export type BookUpdate = TablesUpdate<"books">;
 
@@ -87,5 +93,7 @@ export function bookStoragePaths(userId: string, bookId: string) {
     content: `${base}/content.txt`,
     /** Pasta das ilustrações extraídas (referenciadas no content.txt). */
     images: `${base}/images`,
+    /** Quadrinhos: páginas como imagens (0001.webp, 0002.jpg…), na ordem do nome. */
+    pages: `${base}/pages`,
   } as const;
 }
