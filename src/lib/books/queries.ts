@@ -2,10 +2,12 @@ import "server-only";
 
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
-import { BOOKS_BUCKET, type Book, type BookCard, type BookDetail } from "@/types/book";
+import { BOOKS_BUCKET, bookFolder, type Book, type BookCard, type BookDetail } from "@/types/book";
 import { settingsFromRow, type ReaderSettings } from "@/types/reader";
 
 const SIGNED_URL_TTL = 60 * 60; // 1h
+// As ilustrações carregam aos poucos, conforme a leitura avança: precisam durar a sessão toda.
+const IMAGE_URL_TTL = 60 * 60 * 12;
 
 type ServerClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -110,6 +112,8 @@ export interface ReaderData {
   settings: ReaderSettings;
   /** Signed URL do texto limpo; o Client Component baixa direto do Storage. */
   contentUrl: string | null;
+  /** Signed URLs das ilustrações, pelo nome do arquivo (como aparece no texto). */
+  imageUrls: Record<string, string>;
 }
 
 export async function getReaderData(bookId: string): Promise<ReaderData | null> {
@@ -121,13 +125,34 @@ export async function getReaderData(bookId: string): Promise<ReaderData | null> 
   ]);
   if (!book) return null;
 
-  let contentUrl: string | null = null;
-  if (book.content_path) {
-    const { data } = await supabase.storage
-      .from(BOOKS_BUCKET)
-      .createSignedUrl(book.content_path, SIGNED_URL_TTL);
-    contentUrl = data?.signedUrl ?? null;
+  if (!book.content_path) {
+    return { book, settings: settingsFromRow(prefs), contentUrl: null, imageUrls: {} };
   }
 
-  return { book, settings: settingsFromRow(prefs), contentUrl };
+  const bucket = supabase.storage.from(BOOKS_BUCKET);
+  const imagesFolder = `${bookFolder(book.content_path)}/images`;
+  const [{ data: content }, { data: files }] = await Promise.all([
+    bucket.createSignedUrl(book.content_path, SIGNED_URL_TTL),
+    bucket.list(imagesFolder, { limit: 1000 }),
+  ]);
+
+  // Todas as ilustrações assinadas numa chamada só.
+  const names = (files ?? []).filter((f) => f.id).map((f) => f.name);
+  const imageUrls: Record<string, string> = {};
+  if (names.length) {
+    const { data: signed } = await bucket.createSignedUrls(
+      names.map((name) => `${imagesFolder}/${name}`),
+      IMAGE_URL_TTL,
+    );
+    signed?.forEach((s, i) => {
+      if (s.signedUrl) imageUrls[names[i]] = s.signedUrl;
+    });
+  }
+
+  return {
+    book,
+    settings: settingsFromRow(prefs),
+    contentUrl: content?.signedUrl ?? null,
+    imageUrls,
+  };
 }

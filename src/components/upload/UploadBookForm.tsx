@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CircleCheck, FileUp, Loader2 } from "lucide-react";
 import { uploadBook, type UploadStage } from "@/lib/books/upload";
+import { progressLabel } from "@/lib/pdf/extract";
 
 const STAGE_LABEL: Record<UploadStage, string> = {
   extracting: "Extraindo e limpando o texto",
@@ -46,8 +47,7 @@ export function UploadBookForm() {
         },
         {
           onStage: setStage,
-          onExtractProgress: ({ page, totalPages }) =>
-            setPageProgress(`página ${page} de ${totalPages}`),
+          onExtractProgress: (p) => setPageProgress(progressLabel(p)),
         },
       );
       setSavedBookId(book.id);

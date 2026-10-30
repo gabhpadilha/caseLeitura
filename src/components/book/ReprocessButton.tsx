@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, RefreshCw } from "lucide-react";
 import { reprocessBook } from "@/lib/books/upload";
+import { progressLabel } from "@/lib/pdf/extract";
 import type { Book } from "@/types/book";
 
 interface ReprocessButtonProps {
@@ -19,9 +20,10 @@ export function ReprocessButton({ book }: ReprocessButtonProps) {
     setMessage(null);
     setProgress("Baixando o PDF…");
     try {
-      await reprocessBook(book, ({ page, totalPages }) =>
-        setProgress(`Lendo página ${page} de ${totalPages}…`),
-      );
+      await reprocessBook(book, (p) => {
+        const label = progressLabel(p);
+        setProgress(`${label.charAt(0).toUpperCase()}${label.slice(1)}…`);
+      });
       setMessage({ ok: true, text: "Texto atualizado." });
       router.refresh();
     } catch (err) {
@@ -34,7 +36,7 @@ export function ReprocessButton({ book }: ReprocessButtonProps) {
   return (
     <div className="rounded-2xl bg-paper-soft p-5 text-sm">
       <p className="text-graphite">
-        Títulos ou índice embolados? Extraia o texto de novo a partir do PDF original.
+        Títulos embolados, ilustrações faltando ou PDF escaneado? Extraia o texto de novo a partir do PDF original.
       </p>
       <button
         onClick={handleClick}

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import Link from "next/link";
-import { ChevronLeft, Loader2 } from "lucide-react";
+import { ChevronLeft, Loader2, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { parseBlocks, type TextBlock } from "@/lib/reader/blocks";
 import { HEADING_CLASSES, readerTextClasses, THEME_CLASSES } from "@/lib/reader/styles";
@@ -16,6 +16,8 @@ import { usePagination } from "./use-pagination";
 interface ReaderProps {
   book: Book;
   contentUrl: string | null;
+  /** Ilustrações do livro: nome do arquivo (como no texto) → signed URL. */
+  imageUrls: Record<string, string>;
   initialSettings: ReaderSettings;
 }
 
@@ -32,16 +34,23 @@ const HEADING_TAG = { 1: "h2", 2: "h3", 3: "h4" } as const;
 const EDGE_ZONE = 0.3;
 const SWIPE_MIN_PX = 40;
 
-export function Reader({ book, contentUrl, initialSettings }: ReaderProps) {
+/** Altura livre da página (descontadas a barra de cima e a de baixo) para limitar as ilustrações. */
+const PAGE_HEIGHT = "(100dvh - 11rem)";
+
+export function Reader({ book, contentUrl, imageUrls, initialSettings }: ReaderProps) {
   const supabase = useMemo(() => createClient(), []);
   const [settings, setSettings] = useState(initialSettings);
   const [content, setContent] = useState<ContentState>(
     contentUrl
       ? { status: "loading" }
-      : { status: "error", message: "Este PDF não tem texto extraível (provavelmente escaneado)." },
+      : { status: "error", message: "Este livro ainda não tem texto. Reprocesse na página do livro para ler as páginas escaneadas." },
   );
   const [chromeVisible, setChromeVisible] = useState(true);
   const [panelOpen, setPanelOpen] = useState(false);
+  // Ilustração aberta em tela cheia.
+  const [zoomed, setZoomed] = useState<string | null>(null);
+  // O clique que segue o toque de abrir cai na própria tela cheia: não pode fechá-la.
+  const zoomedAt = useRef(0);
 
   const ready = content.status === "ready";
   const {
@@ -192,7 +201,10 @@ export function Reader({ book, contentUrl, initialSettings }: ReaderProps) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      if (e.key === "Escape") return setPanelOpen(false);
+      if (e.key === "Escape") {
+        setZoomed(null);
+        return setPanelOpen(false);
+      }
       const actions = keyActions.current;
       const handlers: Record<string, () => void> = {
         ArrowRight: () => actions.turn(1),
@@ -233,6 +245,12 @@ export function Reader({ book, contentUrl, initialSettings }: ReaderProps) {
     }
     if (Math.hypot(dx, dy) > 10 || e.timeStamp - start.t > 500) return;
 
+    // Toque numa ilustração abre em tela cheia.
+    if (e.target instanceof HTMLImageElement && e.target.dataset.zoom) {
+      zoomedAt.current = e.timeStamp;
+      return setZoomed(e.target.dataset.zoom);
+    }
+
     const rect = e.currentTarget.getBoundingClientRect();
     const x = (e.clientX - rect.left) / rect.width;
     if (x < EDGE_ZONE) turn(-1);
@@ -246,6 +264,32 @@ export function Reader({ book, contentUrl, initialSettings }: ReaderProps) {
     () =>
       blocks?.map((block, i) => {
         if (block.kind === "paragraph") return <p key={i}>{block.text}</p>;
+        if (block.kind === "image") {
+          const src = imageUrls[block.file];
+          if (!src) return null;
+          const ratio = block.width / block.height;
+          return (
+            <figure key={i} className="my-[1em] break-inside-avoid">
+              {/* Tamanho reservado pelas dimensões: a paginação não muda quando a imagem chega. */}
+              {/* eslint-disable-next-line @next/next/no-img-element -- signed URL do Storage, sem otimização */}
+              <img
+                src={src}
+                alt="Ilustração do livro"
+                data-zoom={src}
+                width={block.width}
+                height={block.height}
+                loading="lazy"
+                decoding="async"
+                draggable={false}
+                className="mx-auto h-auto cursor-zoom-in rounded-sm"
+                style={{
+                  aspectRatio: `${block.width} / ${block.height}`,
+                  width: `min(100%, ${block.width}px, calc(${PAGE_HEIGHT} * ${ratio.toFixed(4)}))`,
+                }}
+              />
+            </figure>
+          );
+        }
         const Heading = HEADING_TAG[block.level];
         return (
           <Heading key={i} className={HEADING_CLASSES[block.level]}>
@@ -253,7 +297,7 @@ export function Reader({ book, contentUrl, initialSettings }: ReaderProps) {
           </Heading>
         );
       }),
-    [blocks],
+    [blocks, imageUrls],
   );
 
   const theme = THEME_CLASSES[settings.theme];
@@ -353,6 +397,29 @@ export function Reader({ book, contentUrl, initialSettings }: ReaderProps) {
           onToggleSettings={() => setPanelOpen((v) => !v)}
         />
       </div>
+
+      {zoomed && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Ilustração em tela cheia"
+          onClick={(e) => {
+            if (e.timeStamp - zoomedAt.current > 400) setZoomed(null);
+          }}
+          className="fixed inset-0 z-30 flex items-center justify-center bg-black/90 p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))]"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element -- signed URL do Storage */}
+          <img src={zoomed} alt="Ilustração do livro" className="max-h-full max-w-full object-contain" />
+          <button
+            type="button"
+            onClick={() => setZoomed(null)}
+            aria-label="Fechar ilustração"
+            className="absolute top-[max(1rem,env(safe-area-inset-top))] right-4 flex size-10 items-center justify-center rounded-full bg-white/15 text-white hover:bg-white/25"
+          >
+            <X className="size-5" aria-hidden />
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 // Apagar livro no browser: registro no banco primeiro, arquivos depois.
 import { createClient } from "@/lib/supabase/client";
-import { BOOKS_BUCKET, type Book } from "@/types/book";
+import { listFolder } from "@/lib/books/upload";
+import { BOOKS_BUCKET, bookFolder, type Book } from "@/types/book";
 
 /**
  * Remove o livro (resenha e anotações saem junto, pela FK com on delete cascade)
@@ -19,5 +20,7 @@ export async function deleteBook(
     (p): p is string => Boolean(p),
   );
   // Melhor esforço: o livro já sumiu da estante.
-  await supabase.storage.from(BOOKS_BUCKET).remove(paths);
+  const bucket = supabase.storage.from(BOOKS_BUCKET);
+  const images = await listFolder(bucket, `${bookFolder(book.pdf_path)}/images`);
+  await bucket.remove([...paths, ...images]);
 }

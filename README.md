@@ -65,12 +65,20 @@ O texto é extraído **no navegador**, antes do upload:
    cabeçalhos/rodapés repetidos e números de página, decide onde há parágrafo real
    e, via regex, desfaz hifenização (`pala-\nvra` → `palavra`, mas `bem-\n-vindo` →
    `bem-vindo`) e quebras de linha visuais.
-3. `upload.ts` envia `original.pdf`, `content.txt` e `cover.webp` (gerada a partir da
-   1ª página, se o usuário não mandar uma) para `books/{user_id}/{book_id}/` e só
-   então grava a linha em `books`.
+3. `images.ts` acha as imagens de cada página (pela lista de operações do pdf.js),
+   descarta ornamentos pequenos e fundos de página inteira e recorta as ilustrações
+   em WebP (JPEG no Safari). No texto, cada uma vira um bloco `![LxA](p12-1.webp)`
+   na altura em que aparece; uma figura no meio de uma frase espera o fim do parágrafo.
+4. `ocr.ts`: página sem texto e com uma imagem grande é escaneada. Ela é lida com
+   Tesseract (WebAssembly, no próprio aparelho, modelo `por` baixado do CDN na
+   primeira vez) e as linhas reconhecidas seguem pelo mesmo pipeline. Se o OCR
+   quase não acha palavras, a página era uma ilustração inteira e vira imagem.
+5. `upload.ts` envia `original.pdf`, `content.txt`, `cover.webp` (gerada a partir da
+   1ª página, se o usuário não mandar uma) e `images/*` para
+   `books/{user_id}/{book_id}/` e só então grava a linha em `books`.
 
-PDFs escaneados (sem camada de texto) ficam com `processing_status = 'failed'`:
-precisariam de OCR, que fica para uma etapa futura no servidor.
+Só fica com `processing_status = 'failed'` o PDF em que nem o OCR acha texto. Livros
+enviados antes ganham ilustrações e OCR pelo botão "Reprocessar texto".
 
 ## Leitor paginado
 

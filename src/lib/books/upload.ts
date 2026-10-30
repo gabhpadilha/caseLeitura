@@ -1,5 +1,10 @@
 // Fluxo de upload no browser: extrai → limpa → envia ao Storage → grava a linha.
-import { extractPdfText, renderCover, type ExtractProgress } from "@/lib/pdf/extract";
+import {
+  extractPdfText,
+  renderCover,
+  type ExtractedImage,
+  type ExtractProgress,
+} from "@/lib/pdf/extract";
 import { createClient } from "@/lib/supabase/client";
 import { BOOKS_BUCKET, bookStoragePaths, type Book } from "@/types/book";
 
@@ -7,6 +12,34 @@ export type UploadStage = "extracting" | "uploading" | "saving";
 
 // O texto pode ser reprocessado: sem cache longo, o leitor sempre pega a versão nova.
 const CONTENT_UPLOAD = { contentType: "text/plain; charset=utf-8", cacheControl: "0" };
+
+/** Envios de ilustrações em paralelo (o Storage aceita bem; mais que isso trava o iPad). */
+const IMAGE_UPLOAD_CONCURRENCY = 4;
+
+type Bucket = ReturnType<ReturnType<typeof createClient>["storage"]["from"]>;
+
+/** Envia as ilustrações para `folder`, em lotes. Devolve os caminhos enviados. */
+async function uploadImages(bucket: Bucket, folder: string, images: ExtractedImage[]) {
+  const paths: string[] = [];
+  for (let i = 0; i < images.length; i += IMAGE_UPLOAD_CONCURRENCY) {
+    const batch = images.slice(i, i + IMAGE_UPLOAD_CONCURRENCY);
+    const results = await Promise.all(
+      batch.map(({ name, blob }) =>
+        bucket.upload(`${folder}/${name}`, blob, { contentType: blob.type, upsert: true }),
+      ),
+    );
+    paths.push(...batch.map(({ name }) => `${folder}/${name}`));
+    const failed = results.find((r) => r.error);
+    if (failed?.error) throw Object.assign(new Error(failed.error.message), { paths });
+  }
+  return paths;
+}
+
+/** Caminhos de todos os arquivos de uma pasta do bucket (sem subpastas). */
+export async function listFolder(bucket: Bucket, folder: string): Promise<string[]> {
+  const { data } = await bucket.list(folder, { limit: 1000 });
+  return (data ?? []).filter((f) => f.id).map((f) => `${folder}/${f.name}`);
+}
 
 export interface UploadBookInput {
   file: File;
@@ -49,9 +82,20 @@ export async function uploadBook(
   ];
   const results = await Promise.all(uploads);
   const failed = results.find((r) => r?.error);
-  if (failed?.error) {
-    await bucket.remove(Object.values(paths));
-    throw new Error(`Falha no upload: ${failed.error.message}`);
+  let imagePaths: string[] = [];
+  let imageError: string | null = null;
+  if (!failed) {
+    try {
+      imagePaths = await uploadImages(bucket, paths.images, extracted.images);
+    } catch (err) {
+      imagePaths = (err as { paths?: string[] }).paths ?? [];
+      imageError = err instanceof Error ? err.message : "erro";
+    }
+  }
+  const uploadError = failed?.error?.message ?? imageError;
+  if (uploadError) {
+    await bucket.remove([paths.pdf, paths.cover, paths.content, ...imagePaths]);
+    throw new Error(`Falha no upload: ${uploadError}`);
   }
 
   // 3. Linha no banco só depois dos arquivos: a galeria nunca vê livro pela metade.
@@ -65,7 +109,7 @@ export async function uploadBook(
       pdf_path: paths.pdf,
       cover_path: cover ? paths.cover : null,
       content_path: extracted.hasTextLayer ? paths.content : null,
-      // Sem camada de texto (PDF escaneado) → 'failed' até existir OCR.
+      // Nem o OCR achou texto legível → 'failed'.
       processing_status: extracted.hasTextLayer ? "ready" : "failed",
       page_count: extracted.pageCount,
       word_count: extracted.wordCount,
@@ -74,7 +118,7 @@ export async function uploadBook(
     .single();
 
   if (error) {
-    await bucket.remove(Object.values(paths));
+    await bucket.remove([paths.pdf, paths.cover, paths.content, ...imagePaths]);
     throw new Error(`Falha ao salvar o livro: ${error.message}`);
   }
   return book;
@@ -99,6 +143,15 @@ export async function reprocessBook(
 
   const extracted = await extractPdfText(pdf, onExtractProgress);
   const paths = bookStoragePaths(auth.user.id, book.id);
+
+  // As ilustrações antigas saem antes: os nomes mudam se a extração mudar.
+  const oldImages = await listFolder(bucket, paths.images);
+  if (oldImages.length) await bucket.remove(oldImages);
+  try {
+    await uploadImages(bucket, paths.images, extracted.images);
+  } catch (err) {
+    throw new Error(`Falha ao salvar as ilustrações: ${err instanceof Error ? err.message : "erro"}`);
+  }
 
   if (extracted.hasTextLayer) {
     const { error } = await bucket.upload(

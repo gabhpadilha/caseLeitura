@@ -26,6 +26,11 @@ async function LeitorLoader({ params }: Pick<PageProps<"/leitor/[bookId]">, "par
   if (!data) notFound();
 
   return (
-    <Reader book={data.book} contentUrl={data.contentUrl} initialSettings={data.settings} />
+    <Reader
+      book={data.book}
+      contentUrl={data.contentUrl}
+      imageUrls={data.imageUrls}
+      initialSettings={data.settings}
+    />
   );
 }

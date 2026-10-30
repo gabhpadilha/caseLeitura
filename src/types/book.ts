@@ -73,6 +73,11 @@ export const READING_STATUS_LABEL: Record<ReadingStatus, string> = {
 
 export const BOOKS_BUCKET = "books";
 
+/** Pasta do livro no bucket, a partir de qualquer arquivo dele. */
+export function bookFolder(path: string): string {
+  return path.slice(0, path.lastIndexOf("/"));
+}
+
 /** Caminhos de um livro no bucket. A 1ª pasta é o user_id (exigido pelo RLS). */
 export function bookStoragePaths(userId: string, bookId: string) {
   const base = `${userId}/${bookId}`;
@@ -80,5 +85,7 @@ export function bookStoragePaths(userId: string, bookId: string) {
     pdf: `${base}/original.pdf`,
     cover: `${base}/cover.webp`,
     content: `${base}/content.txt`,
+    /** Pasta das ilustrações extraídas (referenciadas no content.txt). */
+    images: `${base}/images`,
   } as const;
 }

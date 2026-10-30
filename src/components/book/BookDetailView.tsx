@@ -107,7 +107,7 @@ export function BookDetailView({ data }: BookDetailViewProps) {
             ) : (
               <p className="flex items-center gap-2 rounded-full bg-coral-soft px-4 py-2.5 text-sm text-coral-dark">
                 <TriangleAlert className="size-4" aria-hidden />
-                Este PDF não tem texto extraível (provavelmente escaneado).
+                Ainda sem texto. Reprocesse para ler as páginas escaneadas.
               </p>
             )}
             {pdfUrl && (

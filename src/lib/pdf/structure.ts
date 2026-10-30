@@ -15,6 +15,8 @@ export interface RawLine {
   gapBefore: boolean;
   /** Posição vertical da linha na página (no PDF, y cresce para cima). */
   y: number;
+  /** Linha que é uma ilustração: `text` é o marcador `![LxA](arquivo)`. */
+  image?: boolean;
 }
 
 /** Bordas pela posição visual: as `edge` linhas mais altas e as mais baixas. */
@@ -28,10 +30,18 @@ export type HeadingLevel = 0 | 1 | 2 | 3;
 /** Prefixo de título no texto limpo (`# `, `## `, `### `). */
 export const HEADING_MARK = /^(#{1,3}) /;
 
+/** Marcador de ilustração no texto limpo: `![1200x800](p12-1.webp)` (dimensões em px). */
+export const IMAGE_MARK = /^!\[(\d+)x(\d+)\]\(([^()\s]+)\)$/;
+
+export function imageMarker(file: string, width: number, height: number): string {
+  return `![${width}x${height}](${file})`;
+}
+
 /** Tamanho de fonte mais frequente, ponderado pela quantidade de caracteres. */
 export function bodyFontSize(pages: RawLine[][]): number {
   const weight = new Map<number, number>();
   for (const line of pages.flat()) {
+    if (line.image) continue;
     const key = Math.round(line.size * 2) / 2;
     weight.set(key, (weight.get(key) ?? 0) + line.text.trim().length);
   }
@@ -65,6 +75,7 @@ export function markStructure(pages: RawLine[][]): string[][] {
   const body = bodyFontSize(pages);
   return pages.map((lines) =>
     lines.flatMap((line) => {
+      if (line.image) return ["", line.text];
       const level = headingLevel(line.text, line.size, body);
       const text = level ? `${"#".repeat(level)} ${line.text.trim()}` : line.text;
       return line.gapBefore ? ["", text] : [text];

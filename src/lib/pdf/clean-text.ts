@@ -13,7 +13,7 @@
  *   4. joinLines (regex)   — junta linhas quebradas e desfaz hifenização
  */
 
-import { HEADING_MARK } from "./structure";
+import { HEADING_MARK, IMAGE_MARK } from "./structure";
 
 const LIGATURES: Record<string, string> = {
   "ﬀ": "ff",
@@ -129,6 +129,10 @@ function headingOf(line: string): number {
  *
  * Um título longo quebrado em várias linhas (mesmo nível, sem espaço entre elas)
  * é reunido numa linha só.
+ *
+ * Ilustrações (`![LxA](arquivo)`) são blocos próprios. Uma ilustração no meio
+ * de uma frase (a figura no alto da página seguinte, por exemplo) espera o fim
+ * do parágrafo para não partir o texto em dois.
  */
 export function markParagraphs(
   lines: string[],
@@ -136,7 +140,7 @@ export function markParagraphs(
   listLineRatio = 0.6,
 ): string {
   const lengths = lines
-    .filter((l) => !headingOf(l))
+    .filter((l) => !headingOf(l) && !IMAGE_MARK.test(l.trim()))
     .map((l) => l.length)
     .filter((n) => n > 20);
   const typical = median(lengths);
@@ -145,11 +149,29 @@ export function markParagraphs(
   let out = "";
   let prev: string | null = null;
   let gap = false;
+  const pendingImages: string[] = [];
+  const flushImages = () => {
+    for (const image of pendingImages) out += (out ? "\n\n" : "") + image;
+    pendingImages.length = 0;
+  };
 
   for (const raw of lines) {
     const line = raw.trim();
     if (!line) {
       gap = true;
+      continue;
+    }
+
+    if (IMAGE_MARK.test(line)) {
+      const midSentence = prev !== null && !headingOf(prev) && !SENTENCE_END.test(prev);
+      if (midSentence) {
+        pendingImages.push(line);
+        continue;
+      }
+      flushImages();
+      out += (out ? "\n\n" : "") + line;
+      prev = null;
+      gap = false;
       continue;
     }
 
@@ -172,13 +194,17 @@ export function markParagraphs(
         DIALOGUE_START.test(line) ||
         (endsSentence && isShort) ||
         (isListLine(prev) && isListLine(line));
+      if (breakHere) flushImages();
       out += breakHere ? "\n\n" : "\n";
+    } else if (out) {
+      out += "\n\n";
     }
 
     out += line;
     prev = line;
     gap = false;
   }
+  flushImages();
 
   return out;
 }
