@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useTransition, type FormEvent } from "react";
-import { Check, Loader2, Star } from "lucide-react";
+import { useState, useTransition, type FormEvent, type ReactNode } from "react";
+import { Check, EyeOff, Loader2, Star, Users } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { Review } from "@/types/book";
 
@@ -16,19 +16,71 @@ interface ReviewFormProps {
 
 const RATING_LABEL = ["Não gostei", "Mais ou menos", "Bom", "Muito bom", "Incrível"];
 
+interface ToggleProps {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  disabled?: boolean;
+  icon: ReactNode;
+  label: string;
+  hint: string;
+}
+
+/** Chave liga/desliga com rótulo e explicação (role="switch"). */
+function Toggle({ checked, onChange, disabled = false, icon, label, hint }: ToggleProps) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left ring-1 ring-ink/10 transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
+    >
+      <span className={`shrink-0 ${checked ? "text-coral-dark" : "text-graphite"}`}>{icon}</span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-semibold">{label}</span>
+        <span className="block text-xs leading-relaxed text-graphite">{hint}</span>
+      </span>
+      <span
+        aria-hidden
+        className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${checked ? "bg-coral" : "bg-ink/15"}`}
+      >
+        <span
+          className={`absolute top-1 size-5 rounded-full bg-white shadow transition-[left] ${checked ? "left-6" : "left-1"}`}
+        />
+      </span>
+    </button>
+  );
+}
+
 export function ReviewForm({ bookId, review, onSaved, onCancel }: ReviewFormProps) {
-  const [saved, setSaved] = useState({ rating: review?.rating ?? null, content: review?.content ?? "" });
+  const [saved, setSaved] = useState({
+    rating: review?.rating ?? null,
+    content: review?.content ?? "",
+    // Resenha nova já vem para compartilhar; uma existente mantém a escolha que foi salva.
+    shared: review ? review.shared : true,
+    spoiler: review?.spoiler ?? false,
+  });
   const [rating, setRating] = useState<number | null>(saved.rating);
   const [content, setContent] = useState(saved.content);
+  const [shared, setShared] = useState(saved.shared);
+  const [spoiler, setSpoiler] = useState(saved.spoiler);
   const [status, setStatus] = useState<"idle" | "saved" | "error">("idle");
   const [pending, startTransition] = useTransition();
 
-  const dirty = rating !== saved.rating || content.trim() !== saved.content.trim();
+  // Post na timeline precisa de texto; sem ele a resenha fica só para você.
+  const canShare = content.trim().length > 0;
+  const willShare = shared && canShare;
+  const dirty =
+    rating !== saved.rating ||
+    content.trim() !== saved.content.trim() ||
+    willShare !== (saved.shared && saved.content.trim().length > 0) ||
+    (willShare && spoiler !== saved.spoiler);
 
   function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     startTransition(async () => {
-      const next = { rating, content: content.trim() };
+      const next = { rating, content: content.trim(), shared: willShare, spoiler: willShare && spoiler };
       // Uma resenha por livro: o par (book_id, user_id) é único; user_id vem do auth.uid().
       const { error } = await createClient()
         .from("reviews")
@@ -81,6 +133,38 @@ export function ReviewForm({ bookId, review, onSaved, onCancel }: ReviewFormProp
         aria-label="Resenha"
         className="w-full resize-y rounded-2xl bg-paper p-4 font-serif text-lg leading-relaxed ring-1 ring-ink/10 outline-none placeholder:font-sans placeholder:text-sm placeholder:text-ink/40 focus:ring-2 focus:ring-coral"
       />
+
+      <div className="flex flex-col gap-2">
+        <Toggle
+          checked={willShare}
+          disabled={!canShare}
+          onChange={(v) => {
+            setShared(v);
+            setStatus("idle");
+          }}
+          icon={<Users className="size-5" aria-hidden />}
+          label="Compartilhar na timeline"
+          hint={
+            canShare
+              ? willShare
+                ? "Os outros leitores veem a nota e a resenha."
+                : "Só você vê esta resenha."
+              : "Escreva algo para poder compartilhar."
+          }
+        />
+        {willShare && (
+          <Toggle
+            checked={spoiler}
+            onChange={(v) => {
+              setSpoiler(v);
+              setStatus("idle");
+            }}
+            icon={<EyeOff className="size-5" aria-hidden />}
+            label="Contém spoiler"
+            hint="O texto fica escondido na timeline até a pessoa tocar para ler."
+          />
+        )}
+      </div>
 
       <div className="flex items-center gap-3">
         <button
