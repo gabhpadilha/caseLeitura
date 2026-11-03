@@ -4,8 +4,10 @@ import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { BookOpen, CircleCheck, FileUp, Loader2, MessageCircleMore, type LucideIcon } from "lucide-react";
+import { CategoryPicker } from "@/components/book/CategoryPicker";
 import { uploadBook, type UploadStage } from "@/lib/books/upload";
 import { uploadComic, type ComicStage } from "@/lib/comics/upload";
+import { findCategory } from "@/lib/books/categories";
 import { progressLabel } from "@/lib/pdf/extract";
 import type { BookKind } from "@/types/book";
 
@@ -39,6 +41,7 @@ export function UploadBookForm() {
   const params = useSearchParams();
   const [kind, setKind] = useState<BookKind>(params.get("tipo") === "quadrinho" ? "comic" : "book");
   const [file, setFile] = useState<File | null>(null);
+  const [categories, setCategories] = useState<string[]>([]);
   const [stage, setStage] = useState<UploadStage | ComicStage | null>(null);
   const [pageProgress, setPageProgress] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
@@ -70,7 +73,7 @@ export function UploadBookForm() {
               onStage: setStage,
               onProgress: ({ page, totalPages }) => setPageProgress(`página ${page} de ${totalPages}`),
             })
-          : await uploadBook(input, {
+          : await uploadBook({ ...input, categories }, {
               onStage: setStage,
               onExtractProgress: (p) => setPageProgress(progressLabel(p)),
             });
@@ -146,6 +149,24 @@ export function UploadBookForm() {
         disabled={busy}
         className="rounded-full bg-paper-soft px-5 py-3 text-sm ring-1 ring-ink/10 outline-none focus:ring-2 focus:ring-coral"
       />
+
+      {kind === "book" && (
+        <details className="group rounded-[2rem] bg-paper-soft px-6 py-4 ring-1 ring-ink/5">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-medium [&::-webkit-details-marker]:hidden">
+            <span>
+              Categorias <span className="font-normal text-graphite">(opcional)</span>
+            </span>
+            <span className="truncate text-right text-graphite">
+              {categories.length > 0
+                ? categories.map((slug) => findCategory(slug)?.label).join(", ")
+                : "Romance, Política, Física…"}
+            </span>
+          </summary>
+          <div className="pt-4 pb-2">
+            <CategoryPicker value={categories} onChange={setCategories} disabled={busy} />
+          </div>
+        </details>
+      )}
 
       {error && <p className="text-sm text-coral-dark">{error}</p>}
 

@@ -1,37 +1,37 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import {
-  Bookmark,
-  BookOpen,
-  House,
-  LogOut,
-  MessageCircleMore,
-  NotebookPen,
-  type LucideIcon,
-} from "lucide-react";
+import { usePathname } from "next/navigation";
+import { LibraryBig, MessageCircleMore, Plus, type LucideIcon } from "lucide-react";
 import { LogoMark } from "@/components/brand/Logo";
-import { createClient } from "@/lib/supabase/client";
 
 interface NavItem {
   href: string;
   label: string;
   icon: LucideIcon;
+  isActive: (pathname: string) => boolean;
 }
 
-const NAV_ITEMS: NavItem[] = [
-  { href: "/", label: "Início", icon: House },
-  { href: "/estante/lendo", label: "Lendo agora", icon: BookOpen },
-  { href: "/estante/quero-ler", label: "Quero ler", icon: Bookmark },
-  { href: "/estante/lidos", label: "Lidos e resenhas", icon: NotebookPen },
-  { href: "/quadrinhos", label: "Quadrinhos", icon: MessageCircleMore },
-];
-
-function isActive(pathname: string | null, href: string) {
-  if (pathname === null) return false;
-  return href === "/" ? pathname === "/" : pathname.startsWith(href);
-}
+// Três destinos: os livros (com filtros de estado e categoria), os quadrinhos e o envio.
+// A conta (nome e sair) fica no avatar do topo.
+const LIVROS: NavItem = {
+  href: "/",
+  label: "Livros",
+  icon: LibraryBig,
+  isActive: (p) => p === "/" || (p.startsWith("/livros/") && p !== "/livros/novo"),
+};
+const QUADRINHOS: NavItem = {
+  href: "/quadrinhos",
+  label: "Quadrinhos",
+  icon: MessageCircleMore,
+  isActive: (p) => p.startsWith("/quadrinhos"),
+};
+const ENVIAR: NavItem = {
+  href: "/livros/novo",
+  label: "Enviar",
+  icon: Plus,
+  isActive: (p) => p === "/livros/novo",
+};
 
 /** Trilho lateral no tablet/desktop e barra inferior no celular. */
 export function AppNav() {
@@ -46,59 +46,51 @@ export function AppNavFallback() {
   return <NavMarkup pathname={null} />;
 }
 
+function NavLink({ item, pathname, raised = false }: { item: NavItem; pathname: string | null; raised?: boolean }) {
+  const active = pathname !== null && item.isActive(pathname);
+  const Icon = item.icon;
+  const circle = raised
+    ? `size-14 -mt-7 bg-ink text-paper shadow-lg shadow-ink/30 md:mt-0 md:bg-transparent md:text-ink md:shadow-none md:border-2 md:border-dashed ${
+        active ? "md:border-coral md:text-coral-dark" : "md:border-ink/25 md:hover:border-ink/50"
+      }`
+    : `size-12 md:size-14 ${active ? "bg-coral text-white shadow-lg shadow-coral/30" : "text-ink hover:bg-ink/5"}`;
+
+  return (
+    <Link
+      href={item.href}
+      aria-current={active ? "page" : undefined}
+      className="flex min-w-16 flex-col items-center gap-1"
+    >
+      <span className={`flex items-center justify-center rounded-full transition-colors ${circle}`}>
+        <Icon className="size-[1.35rem]" strokeWidth={raised ? 2.2 : 1.7} aria-hidden />
+      </span>
+      <span className={`text-[0.68rem] font-semibold ${active ? "text-ink" : "text-graphite"}`}>{item.label}</span>
+    </Link>
+  );
+}
+
 function NavMarkup({ pathname }: { pathname: string | null }) {
-  const router = useRouter();
-
-  async function signOut() {
-    await createClient().auth.signOut();
-    router.replace("/login");
-    router.refresh();
-  }
-
-  const itemClass = (active: boolean) =>
-    `flex size-12 items-center justify-center rounded-full transition-colors md:size-14 ${
-      active ? "bg-coral text-white shadow-lg shadow-coral/30" : "text-ink hover:bg-ink/5"
-    }`;
-
-  const items = NAV_ITEMS.map(({ href, label, icon: Icon }) => {
-    const active = isActive(pathname, href);
-    return (
-      <Link
-        key={href}
-        href={href}
-        title={label}
-        aria-label={label}
-        aria-current={active ? "page" : undefined}
-        className={itemClass(active)}
-      >
-        <Icon className="size-[1.35rem]" strokeWidth={1.7} aria-hidden />
-      </Link>
-    );
-  });
-
   return (
     <>
       <nav
         aria-label="Navegação principal"
-        className="fixed inset-y-0 left-0 z-30 hidden w-24 flex-col items-center border-r border-ink/10 bg-paper py-8 md:flex"
+        className="fixed inset-y-0 left-0 z-30 hidden w-24 flex-col items-center gap-5 border-r border-ink/10 bg-paper py-8 md:flex"
       >
-        <Link href="/" aria-label="caseLeitura — início" className="mb-12 text-ink">
+        <Link href="/" aria-label="caseLeitura — livros" className="mb-7 text-ink">
           <LogoMark className="size-11" />
         </Link>
-        <div className="flex flex-1 flex-col items-center gap-5">{items}</div>
-        <button onClick={signOut} title="Sair" aria-label="Sair" className={itemClass(false)}>
-          <LogOut className="size-5" strokeWidth={1.7} aria-hidden />
-        </button>
+        <NavLink item={LIVROS} pathname={pathname} />
+        <NavLink item={QUADRINHOS} pathname={pathname} />
+        <NavLink item={ENVIAR} pathname={pathname} raised />
       </nav>
 
       <nav
         aria-label="Navegação principal"
-        className="fixed inset-x-0 bottom-0 z-30 flex items-center justify-around border-t border-ink/10 bg-paper/95 px-4 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur md:hidden"
+        className="fixed inset-x-0 bottom-0 z-30 flex items-end justify-around border-t border-ink/10 bg-paper/95 px-4 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur md:hidden"
       >
-        {items}
-        <button onClick={signOut} aria-label="Sair" className={itemClass(false)}>
-          <LogOut className="size-5" strokeWidth={1.7} aria-hidden />
-        </button>
+        <NavLink item={LIVROS} pathname={pathname} />
+        <NavLink item={ENVIAR} pathname={pathname} raised />
+        <NavLink item={QUADRINHOS} pathname={pathname} />
       </nav>
     </>
   );

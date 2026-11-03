@@ -39,6 +39,7 @@ export interface BookCard
     | "created_at"
     | "started_at"
     | "finished_at"
+    | "categories"
   > {
   coverUrl: string | null;
   /** Nota da resenha (1–5), se houver. */
@@ -47,7 +48,7 @@ export interface BookCard
   review: string | null;
 }
 
-/** Prateleiras da estante, com o slug usado na URL (/estante/[slug]). */
+/** Filtros de estado da galeria, com o slug usado na URL (/?estado=[slug]). */
 export const SHELVES = [
   { slug: "lendo", status: "reading", title: "Lendo agora", short: "Lendo" },
   { slug: "quero-ler", status: "to_read", title: "Quero ler", short: "Quero ler" },

@@ -5,6 +5,7 @@ import { BookCover } from "@/components/gallery/BookCover";
 import { StatusBadge } from "@/components/gallery/StatusBadge";
 import { formatDate, formatPercent, readingDuration, readingTime } from "@/lib/books/format";
 import { isComic, type BookDetail } from "@/types/book";
+import { BookCategories } from "./BookCategories";
 import { DeleteBookButton } from "./DeleteBookButton";
 import { EditBookButton } from "./EditBookButton";
 import { ReprocessButton } from "./ReprocessButton";
@@ -54,7 +55,7 @@ export function BookDetailView({ data }: BookDetailViewProps) {
         href={comic ? "/quadrinhos" : "/"}
         className="inline-flex items-center gap-1 font-semibold text-coral-dark hover:underline"
       >
-        <ChevronLeft className="size-5" aria-hidden /> {comic ? "Meus quadrinhos" : "Minha estante"}
+        <ChevronLeft className="size-5" aria-hidden /> {comic ? "Meus quadrinhos" : "Meus livros"}
       </Link>
 
       <header className="mt-10 grid gap-10 md:grid-cols-[auto_1fr] md:items-center lg:gap-16">
@@ -78,6 +79,11 @@ export function BookDetailView({ data }: BookDetailViewProps) {
           <h1 className="mt-5 font-display text-5xl leading-[1.02] font-medium lg:text-7xl">{book.title}</h1>
           {book.author && <p className="mt-4 text-lg font-semibold">{book.author}</p>}
           {book.description && <p className="mt-4 max-w-xl text-graphite italic">{book.description}</p>}
+          {!comic && (
+            <div className="mt-5">
+              <BookCategories book={book} />
+            </div>
+          )}
 
           <div className="mt-5 flex items-center gap-3">
             <span className="flex gap-1" role="img" aria-label={rating ? `Minha nota: ${rating} de 5` : "Sem nota"}>

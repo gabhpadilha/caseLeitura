@@ -5,6 +5,7 @@ import {
   type ExtractedImage,
   type ExtractProgress,
 } from "@/lib/pdf/extract";
+import { normalizeCategories } from "@/lib/books/categories";
 import { createClient } from "@/lib/supabase/client";
 import { BOOKS_BUCKET, bookStoragePaths, type Book } from "@/types/book";
 
@@ -46,6 +47,8 @@ export interface UploadBookInput {
   title?: string;
   author?: string;
   cover?: File | null;
+  /** Slugs de src/lib/books/categories.ts (até 3). */
+  categories?: string[];
 }
 
 export interface UploadCallbacks {
@@ -98,6 +101,7 @@ export async function uploadBook(
     throw new Error(`Falha no upload: ${uploadError}`);
   }
 
+  const categories = normalizeCategories(input.categories ?? []);
   // 3. Linha no banco só depois dos arquivos: a galeria nunca vê livro pela metade.
   onStage?.("saving");
   const { data: book, error } = await supabase
@@ -113,6 +117,8 @@ export async function uploadBook(
       processing_status: extracted.hasTextLayer ? "ready" : "failed",
       page_count: extracted.pageCount,
       word_count: extracted.wordCount,
+      // Só envia a coluna quando há escolha: sem categorias, o envio funciona antes da migration.
+      ...(categories.length > 0 && { categories }),
     })
     .select()
     .single();

@@ -2,17 +2,19 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { ContinueReading } from "@/components/gallery/ContinueReading";
 import { BookGrid, LibrarySkeleton } from "@/components/gallery/BookGrid";
-import { Bookshelf } from "@/components/gallery/Bookshelf";
-import { matchesQuery } from "@/lib/books/format";
+import { LibraryFilters } from "@/components/gallery/LibraryFilters";
+import { ReadDiary } from "@/components/gallery/ReadDiary";
+import { findCategory } from "@/lib/books/categories";
+import { applyGalleryFilters, galleryHref, parseGalleryFilters, type GalleryFilters } from "@/lib/books/gallery";
 import { getUserName, listBookCards } from "@/lib/books/queries";
-import { sortForGallery, sortForShelf } from "@/lib/books/shelves";
+import { sortForShelf } from "@/lib/books/shelves";
 import type { BookCard } from "@/types/book";
 
 // O shell da página é pré-renderizado; a estante (dados por usuário) chega via streaming.
-export default function InicioPage({ searchParams }: PageProps<"/">) {
+export default function LivrosPage({ searchParams }: PageProps<"/">) {
   return (
     <Suspense fallback={<LibrarySkeleton />}>
-      <Inicio searchParams={searchParams} />
+      <Livros searchParams={searchParams} />
     </Suspense>
   );
 }
@@ -27,45 +29,68 @@ function pickFeatured(books: BookCard[]): BookCard | null {
   );
 }
 
-// Server Component assíncrono: busca no servidor, com o RLS filtrando pelo usuário logado.
-async function Inicio({ searchParams }: Pick<PageProps<"/">, "searchParams">) {
-  const [{ q }, books, name] = await Promise.all([searchParams, listBookCards(), getUserName()]);
-  const query = typeof q === "string" ? q.trim() : "";
+const EMPTY: Record<string, string> = {
+  lendo: "Nenhuma leitura em andamento. Abra um livro da fila para começar.",
+  "quero-ler": "Sua fila está vazia. Envie um PDF para guardar a próxima leitura.",
+  lidos: "Quando terminar um livro, marque como Lido: ele aparece aqui com a sua resenha.",
+  abandonados: "Nenhum livro abandonado. Ainda bem.",
+};
 
-  if (query) {
-    const results = books.filter((b) => matchesQuery(b, query));
-    return (
-      <section>
-        <h1 className="mb-10 font-display text-4xl font-medium">
-          {results.length > 0 ? `Resultados para “${query}”` : `Nada encontrado para “${query}”`}
-        </h1>
-        {results.length > 0 ? (
-          <BookGrid books={results} showStatus />
-        ) : (
-          <Link href="/" className="text-sm font-semibold text-coral-dark underline underline-offset-4">
-            Voltar para a estante
-          </Link>
-        )}
-      </section>
-    );
-  }
+/** Frase do resultado: "5 livros em Política", "Nada encontrado para “x”"… */
+function Summary({ count, filters }: { count: number; filters: GalleryFilters }) {
+  const category = findCategory(filters.category)?.label;
+  if (!filters.query && !category) return null;
+  return (
+    <p className="text-sm text-graphite">
+      {count} {count === 1 ? "livro" : "livros"}
+      {category && (
+        <>
+          {" "}
+          em <b className="text-ink">{category}</b>
+        </>
+      )}
+      {filters.query && <> para “{filters.query}”</>}
+    </p>
+  );
+}
+
+// Server Component assíncrono: busca no servidor, com o RLS filtrando pelo usuário logado.
+async function Livros({ searchParams }: Pick<PageProps<"/">, "searchParams">) {
+  const [params, books, name] = await Promise.all([searchParams, listBookCards(), getUserName()]);
+  const filters = parseGalleryFilters(params);
+  const view = applyGalleryFilters(books, filters);
+  const filtered = Boolean(filters.query || filters.category);
 
   return (
-    <div className="space-y-14">
+    <div className="space-y-10">
       <ContinueReading name={name} book={pickFeatured(books)} />
+
       {books.length > 0 && (
-        <section aria-labelledby="estante">
-          <div className="mb-8 flex items-baseline justify-between gap-4">
-            <h2 id="estante" className="font-display text-3xl font-medium sm:text-4xl">
-              Sua estante
-            </h2>
-            <span className="text-graphite">
-              {books.length} {books.length === 1 ? "livro" : "livros"}
-            </span>
-          </div>
-          {/* Galeria geral: o estado de cada livro vai no selo da capa; a
-              navegação por prateleira fica no trilho lateral. */}
-          <Bookshelf books={sortForGallery(books)} />
+        <section className="space-y-6">
+          <LibraryFilters filters={filters} view={view} />
+          <Summary count={view.books.length} filters={filters} />
+
+          {view.books.length === 0 ? (
+            <div className="rounded-[2rem] bg-paper-soft px-8 py-14 text-center">
+              <p className="mx-auto max-w-md text-graphite">
+                {filtered
+                  ? "Nenhum livro com esses filtros."
+                  : EMPTY[filters.shelf?.slug ?? ""] ?? "Nenhum livro por aqui."}
+              </p>
+              {filtered && (
+                <Link
+                  href={galleryHref(filters, { q: null, categoria: null })}
+                  className="mt-5 inline-flex rounded-full px-5 py-2.5 text-sm font-medium ring-1 ring-ink/30 hover:bg-white"
+                >
+                  Limpar busca e categoria
+                </Link>
+              )}
+            </div>
+          ) : filters.shelf?.slug === "lidos" ? (
+            <ReadDiary books={view.books} />
+          ) : (
+            <BookGrid books={view.books} showStatus={!filters.shelf} />
+          )}
         </section>
       )}
     </div>

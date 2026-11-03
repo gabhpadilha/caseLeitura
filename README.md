@@ -34,17 +34,18 @@ src/
     layout.tsx              raiz (pt-BR, fontes do design system)
     manifest.ts             PWA: nome, cores e ícones
     login/                  entrar / criar conta
-    (biblioteca)/           grupo com trilho lateral, busca e "Enviar PDF"
-      page.tsx              início: destaque, filtros e prateleiras
-      estante/[shelf]/      prateleiras: lendo, quero-ler, lidos (diário), abandonados
+    (biblioteca)/           grupo com o menu (Livros, Quadrinhos, Enviar) e o avatar
+      page.tsx              Livros: continuar lendo + filtros na URL (?estado, ?categoria, ?ordem, ?q);
+                            em ?estado=lidos vira o diário com nota e resenha
+      estante/[shelf]/      links antigos: redireciona para /?estado=[shelf]
       livros/[bookId]/      página do livro: status, nota, resenha, apagar
       livros/novo/          upload de PDF
     leitor/[bookId]/        leitor paginado em tela cheia (fora do grupo)
   components/
     brand/                  LogoMark, Wordmark
-    layout/                 AppNav, SearchBar, HeaderUser
-    gallery/                BookCover, Shelf, ShelfChips, ContinueReading, ReadDiary
-    book/                   BookDetailView, ReviewCard, StatusPicker, DeleteBookButton
+    layout/                 AppNav, HeaderUser
+    gallery/                BookCover, BookGrid, LibraryFilters, ContinueReading, ReadDiary
+    book/                   BookDetailView, BookCategories, CategoryPicker, ReviewCard, StatusPicker
     reader/                 Reader, ReaderToolbar, ReaderSettingsPanel, use-pagination
     upload/, auth/          UploadBookForm, LoginForm
   lib/

@@ -9,6 +9,8 @@ interface ModalProps {
   labelledBy: string;
   /** false enquanto salva/apaga: Esc e clique fora deixam de fechar. */
   dismissible?: boolean;
+  /** Janela larga (listas de opções, como as categorias). */
+  wide?: boolean;
   children: ReactNode;
 }
 
@@ -16,7 +18,7 @@ interface ModalProps {
  * Janela modal sobre o <dialog> nativo: foco preso, Esc e clique no fundo
  * escurecido fecham. O estado `open` fica com quem usa.
  */
-export function Modal({ open, onClose, labelledBy, dismissible = true, children }: ModalProps) {
+export function Modal({ open, onClose, labelledBy, dismissible = true, wide = false, children }: ModalProps) {
   const ref = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
@@ -39,7 +41,7 @@ export function Modal({ open, onClose, labelledBy, dismissible = true, children 
       onClick={(e) => {
         if (dismissible && e.target === ref.current) onClose();
       }}
-      className="m-auto w-[min(28rem,calc(100%-2rem))] rounded-3xl bg-paper-soft p-0 text-ink shadow-2xl backdrop:bg-ink/50 backdrop:backdrop-blur-[2px]"
+      className={`m-auto ${wide ? "w-[min(42rem,calc(100%-2rem))]" : "w-[min(28rem,calc(100%-2rem))]"} max-h-[calc(100dvh-2rem)] rounded-3xl bg-paper-soft p-0 text-ink shadow-2xl backdrop:bg-ink/50 backdrop:backdrop-blur-[2px]`}
     >
       <div className="p-6 sm:p-7">{children}</div>
     </dialog>

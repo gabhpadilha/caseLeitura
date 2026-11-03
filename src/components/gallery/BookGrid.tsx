@@ -21,33 +21,27 @@ export function BookGrid({ books, showStatus = false }: BookGridProps) {
   );
 }
 
-/** Placeholder das páginas da estante: destaque (início) ou título (prateleiras) + prateleiras. */
-export function LibrarySkeleton({ hero = true }: { hero?: boolean }) {
+/** Placeholder da página Livros: atalho de leitura, filtros e grade. */
+export function LibrarySkeleton() {
   return (
-    <div className="animate-pulse space-y-14" aria-busy="true" aria-label="Carregando estante">
-      {hero && (
-        <div className="grid items-center gap-10 lg:grid-cols-[1fr_1.05fr]">
-          <div className="space-y-4">
-            <div className="h-16 w-3/4 rounded-lg bg-ink/10" />
-            <div className="h-16 w-1/2 rounded-lg bg-ink/10" />
-            <div className="h-5 w-2/3 rounded bg-ink/10" />
-            <div className="h-12 w-44 rounded-full bg-ink/10" />
-          </div>
-          <div className="h-64 rounded-[2rem] bg-ink/5" />
+    <div className="animate-pulse space-y-10" aria-busy="true" aria-label="Carregando estante">
+      <div className="h-32 rounded-[2rem] bg-ink/5" />
+      <div className="space-y-4">
+        <div className="h-12 w-60 rounded-lg bg-ink/10" />
+        <div className="flex gap-2">
+          {[0, 1, 2, 3, 4].map((i) => (
+            <div key={i} className="h-9 w-24 rounded-full bg-ink/10" />
+          ))}
         </div>
-      )}
-      {!hero && <div className="h-14 w-72 rounded-lg bg-ink/10" />}
-      {[0, 1].map((shelf) => (
-        <div key={shelf}>
-          <div className="mb-5 h-9 w-48 rounded bg-ink/10" />
-          <div className="flex gap-10 overflow-hidden px-6">
-            {Array.from({ length: 5 }, (_, i) => (
-              <div key={i} className="aspect-[2/3] w-28 shrink-0 rounded bg-ink/10 sm:w-36" />
-            ))}
+      </div>
+      <div className={GRID}>
+        {Array.from({ length: 10 }, (_, i) => (
+          <div key={i}>
+            <div className="aspect-[2/3] rounded bg-ink/10" />
+            <div className="mt-3 h-4 w-3/4 rounded bg-ink/10" />
           </div>
-          <div className="mt-6 h-4 rounded-sm bg-wood/50" />
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }

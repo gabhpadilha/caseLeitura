@@ -16,6 +16,13 @@ const SIGNED_URL_TTL = 60 * 60; // 1h
 // As ilustrações carregam aos poucos, conforme a leitura avança: precisam durar a sessão toda.
 const IMAGE_URL_TTL = 60 * 60 * 12;
 
+/** Linha de CARD_COLUMNS (sem `categories` antes da migration). */
+type BookCardRow = Omit<BookCard, "coverUrl" | "rating" | "review" | "categories"> & {
+  categories?: string[];
+  cover_path: string | null;
+  reviews: { rating: number | null; content: string } | { rating: number | null; content: string }[] | null;
+};
+
 type ServerClient = Awaited<ReturnType<typeof createClient>>;
 
 /** Assina várias capas numa única chamada ao Storage (evita N+1). */
@@ -29,9 +36,10 @@ async function signPaths(supabase: ServerClient, paths: (string | null)[]) {
 }
 
 const CARD_COLUMNS =
-  "id, title, author, status, progress, processing_status, page_count, word_count, last_read_at, created_at, started_at, finished_at, cover_path, reviews(rating, content)";
+  "id, title, author, status, progress, processing_status, page_count, word_count, last_read_at, created_at, started_at, finished_at, categories, cover_path, reviews(rating, content)";
+const LEGACY_CARD_COLUMNS = CARD_COLUMNS.replace("categories, ", "");
 
-/** Coluna inexistente: o banco ainda não recebeu a migration dos quadrinhos. */
+/** Coluna inexistente: o banco ainda não recebeu uma migration (quadrinhos, categorias). */
 const UNDEFINED_COLUMN = "42703";
 
 /**
@@ -41,24 +49,29 @@ const UNDEFINED_COLUMN = "42703";
 export async function listBookCards(kind: BookKind = "book"): Promise<BookCard[]> {
   const supabase = await createClient();
 
-  const query = () =>
-    supabase.from("books").select(CARD_COLUMNS).order("created_at", { ascending: false });
-  let { data: books, error } = await query().eq("kind", kind);
-  // Antes da migration (sem a coluna `kind`) tudo é livro.
+  const query = (columns: string, byKind = true) => {
+    const q = supabase.from("books").select(columns).order("created_at", { ascending: false });
+    return (byKind ? q.eq("kind", kind) : q).overrideTypes<BookCardRow[], { merge: false }>();
+  };
+  let { data: books, error } = await query(CARD_COLUMNS);
+  // Antes da migration das categorias: sem a coluna, nenhum livro tem categoria.
+  if (error?.code === UNDEFINED_COLUMN) ({ data: books, error } = await query(LEGACY_CARD_COLUMNS));
+  // Antes da migration dos quadrinhos (sem a coluna `kind`) tudo é livro.
   if (error?.code === UNDEFINED_COLUMN) {
     if (kind === "comic") return [];
-    ({ data: books, error } = await query());
+    ({ data: books, error } = await query(LEGACY_CARD_COLUMNS, false));
   }
   if (error) throw error;
   if (!books) return [];
 
   const urlByPath = await signPaths(supabase, books.map((b) => b.cover_path));
 
-  return books.map(({ cover_path, reviews, ...book }) => {
+  return books.map(({ cover_path, reviews, categories, ...book }) => {
     // A resenha é 1:1 com o livro; o PostgREST pode devolver objeto ou lista.
     const review = Array.isArray(reviews) ? reviews[0] : reviews;
     return {
       ...book,
+      categories: categories ?? [],
       coverUrl: cover_path ? (urlByPath.get(cover_path) ?? null) : null,
       rating: review?.rating ?? null,
       review: review?.content.trim() || null,
