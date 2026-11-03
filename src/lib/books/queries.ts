@@ -213,3 +213,146 @@ export async function getComicPages(book: Pick<Book, "pdf_path">): Promise<strin
   );
   return (signed ?? []).flatMap((s) => (s.signedUrl ? [s.signedUrl] : []));
 }
+
+// ---------------------------------------------------------------------------
+// Comunidade: o que os outros veem. Tudo passa pelas funções do banco
+// (timeline, member_books), que só devolvem os campos públicos.
+// ---------------------------------------------------------------------------
+
+/** Nome para quem ainda não escolheu um (o e-mail dos outros nunca é exposto). */
+export const UNNAMED_READER = "Leitor sem nome";
+
+async function currentUserId(supabase: ServerClient): Promise<string | null> {
+  const { data } = await supabase.auth.getClaims();
+  return typeof data?.claims.sub === "string" ? data.claims.sub : null;
+}
+
+export interface TimelinePost {
+  reviewId: string;
+  userId: string;
+  userName: string;
+  bookTitle: string;
+  bookAuthor: string | null;
+  bookId: string;
+  coverUrl: string | null;
+  rating: number | null;
+  content: string;
+  spoiler: boolean;
+  sharedAt: string;
+  /** Post de quem está vendo (leva à página do livro, não à estante pública). */
+  mine: boolean;
+}
+
+export const TIMELINE_PAGE = 20;
+
+/** Uma página da timeline, mais recentes primeiro. `before` = sharedAt do último post já visto. */
+export async function getTimeline(
+  before: string | null = null,
+): Promise<{ posts: TimelinePost[]; nextBefore: string | null }> {
+  const supabase = await createClient();
+  const [{ data, error }, me] = await Promise.all([
+    supabase.rpc("timeline", { p_before: before, p_limit: TIMELINE_PAGE }),
+    currentUserId(supabase),
+  ]);
+  if (error) throw error;
+  const rows = data ?? [];
+  const urlByPath = await signPaths(supabase, rows.map((r) => r.cover_path));
+
+  const posts = rows.map((r) => ({
+    reviewId: r.review_id,
+    userId: r.user_id,
+    userName: r.user_name?.trim() || UNNAMED_READER,
+    bookId: r.book_id,
+    bookTitle: r.book_title,
+    bookAuthor: r.book_author,
+    coverUrl: r.cover_path ? (urlByPath.get(r.cover_path) ?? null) : null,
+    rating: r.rating,
+    content: r.content,
+    spoiler: r.spoiler,
+    sharedAt: r.shared_at,
+    mine: r.user_id === me,
+  }));
+  return { posts, nextBefore: posts.length === TIMELINE_PAGE ? posts[posts.length - 1].sharedAt : null };
+}
+
+export interface MemberBook {
+  id: string;
+  title: string;
+  author: string | null;
+  status: Book["status"];
+  kind: BookKind;
+  categories: string[];
+  coverUrl: string | null;
+  createdAt: string;
+  finishedAt: string | null;
+  /** Nota e resenha só quando o dono compartilhou. */
+  rating: number | null;
+  review: string | null;
+  spoiler: boolean;
+}
+
+export interface Member {
+  id: string;
+  name: string;
+  isMe: boolean;
+}
+
+async function memberBooks(supabase: ServerClient, userId: string): Promise<MemberBook[]> {
+  const { data, error } = await supabase.rpc("member_books", { p_user: userId });
+  if (error) throw error;
+  const rows = data ?? [];
+  const urlByPath = await signPaths(supabase, rows.map((r) => r.cover_path));
+  return rows.map((r) => ({
+    id: r.id,
+    title: r.title,
+    author: r.author,
+    status: r.status,
+    kind: r.kind,
+    categories: r.categories ?? [],
+    coverUrl: r.cover_path ? (urlByPath.get(r.cover_path) ?? null) : null,
+    createdAt: r.created_at,
+    finishedAt: r.finished_at,
+    rating: r.rating,
+    review: r.review?.trim() || null,
+    spoiler: Boolean(r.spoiler),
+  }));
+}
+
+/** Todos os leitores do app, com a estante pública de cada um (para a página Leitores). */
+export async function listMembers(): Promise<(Member & { books: MemberBook[] })[]> {
+  const supabase = await createClient();
+  const [{ data: profiles, error }, me] = await Promise.all([
+    supabase.from("profiles").select("id, display_name").order("created_at"),
+    currentUserId(supabase),
+  ]);
+  if (error) throw error;
+  const members = await Promise.all(
+    (profiles ?? []).map(async (p) => ({
+      id: p.id,
+      name: p.display_name?.trim() || UNNAMED_READER,
+      isMe: p.id === me,
+      books: await memberBooks(supabase, p.id),
+    })),
+  );
+  // Você primeiro; depois os outros, na ordem de chegada.
+  return members.sort((a, b) => Number(b.isMe) - Number(a.isMe));
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Estante pública de um leitor; null se o id não existe. */
+export async function getMemberShelf(userId: string): Promise<(Member & { books: MemberBook[] }) | null> {
+  if (!UUID.test(userId)) return null;
+  const supabase = await createClient();
+  const [{ data: profile }, me] = await Promise.all([
+    supabase.from("profiles").select("id, display_name").eq("id", userId).maybeSingle(),
+    currentUserId(supabase),
+  ]);
+  if (!profile) return null;
+  return {
+    id: profile.id,
+    name: profile.display_name?.trim() || UNNAMED_READER,
+    isMe: profile.id === me,
+    books: await memberBooks(supabase, profile.id),
+  };
+}

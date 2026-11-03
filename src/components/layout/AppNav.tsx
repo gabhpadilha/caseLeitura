@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LibraryBig, MessageCircleMore, Plus, type LucideIcon } from "lucide-react";
+import { LibraryBig, MessageCircleMore, Newspaper, Plus, Users, type LucideIcon } from "lucide-react";
 import { LogoMark } from "@/components/brand/Logo";
 
 interface NavItem {
@@ -12,13 +12,26 @@ interface NavItem {
   isActive: (pathname: string) => boolean;
 }
 
-// Três destinos: os livros (com filtros de estado e categoria), os quadrinhos e o envio.
-// A conta (nome e sair) fica no avatar do topo.
+// Destinos: os livros (com filtros de estado e categoria), a timeline de resenhas,
+// os leitores (estante de cada um), os quadrinhos e o envio.
+// A conta (nome, convites e sair) fica no avatar do topo.
 const LIVROS: NavItem = {
   href: "/",
   label: "Livros",
   icon: LibraryBig,
   isActive: (p) => p === "/" || (p.startsWith("/livros/") && p !== "/livros/novo"),
+};
+const TIMELINE: NavItem = {
+  href: "/timeline",
+  label: "Timeline",
+  icon: Newspaper,
+  isActive: (p) => p.startsWith("/timeline"),
+};
+const LEITORES: NavItem = {
+  href: "/leitores",
+  label: "Leitores",
+  icon: Users,
+  isActive: (p) => p.startsWith("/leitores"),
 };
 const QUADRINHOS: NavItem = {
   href: "/quadrinhos",
@@ -59,7 +72,7 @@ function NavLink({ item, pathname, raised = false }: { item: NavItem; pathname: 
     <Link
       href={item.href}
       aria-current={active ? "page" : undefined}
-      className="flex min-w-16 flex-col items-center gap-1"
+      className="flex min-w-14 flex-col items-center gap-1"
     >
       <span className={`flex items-center justify-center rounded-full transition-colors ${circle}`}>
         <Icon className="size-[1.35rem]" strokeWidth={raised ? 2.2 : 1.7} aria-hidden />
@@ -80,16 +93,20 @@ function NavMarkup({ pathname }: { pathname: string | null }) {
           <LogoMark className="size-11" />
         </Link>
         <NavLink item={LIVROS} pathname={pathname} />
+        <NavLink item={TIMELINE} pathname={pathname} />
+        <NavLink item={LEITORES} pathname={pathname} />
         <NavLink item={QUADRINHOS} pathname={pathname} />
         <NavLink item={ENVIAR} pathname={pathname} raised />
       </nav>
 
       <nav
         aria-label="Navegação principal"
-        className="fixed inset-x-0 bottom-0 z-30 flex items-end justify-around border-t border-ink/10 bg-paper/95 px-4 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur md:hidden"
+        className="fixed inset-x-0 bottom-0 z-30 flex items-end justify-around border-t border-ink/10 bg-paper/95 px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur md:hidden"
       >
         <NavLink item={LIVROS} pathname={pathname} />
+        <NavLink item={TIMELINE} pathname={pathname} />
         <NavLink item={ENVIAR} pathname={pathname} raised />
+        <NavLink item={LEITORES} pathname={pathname} />
         <NavLink item={QUADRINHOS} pathname={pathname} />
       </nav>
     </>

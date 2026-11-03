@@ -170,3 +170,7 @@ Regras aplicadas no banco (`supabase/migrations/20261103000000_community.sql`):
   os outros só abrem `cover.webp`.
 - **Resenhas:** `reviews.shared` e `reviews.spoiler`. Só as compartilhadas aparecem para os outros e na
   `timeline()`.
+
+Telas: `/timeline` (resenhas compartilhadas, paginação por `?antes=`; spoiler borrado até tocar),
+`/leitores` (cada leitor com o que está lendo) e `/leitores/[id]` (estante pública e resenhas, sem ler
+nem baixar).
