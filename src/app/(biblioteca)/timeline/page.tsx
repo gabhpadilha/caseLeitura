@@ -71,6 +71,7 @@ async function Feed({ searchParams }: Pick<PageProps<"/timeline">, "searchParams
           content={post.content}
           spoiler={post.spoiler}
           sharedAt={post.sharedAt}
+          comments={{ href: `/resenha/${post.reviewId}`, count: post.commentCount }}
         />
       ))}
       {nextBefore && (

@@ -101,6 +101,7 @@ async function Leitor({ params, searchParams }: PageProps<"/leitores/[userId]">)
                 spoiler={b.spoiler}
                 sharedAt={null}
                 hideAuthor
+                comments={b.reviewId ? { href: `/resenha/${b.reviewId}`, count: b.commentCount } : undefined}
               />
             ))}
           </div>

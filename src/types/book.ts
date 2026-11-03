@@ -20,6 +20,8 @@ export type BookUpdate = TablesUpdate<"books">;
 export type Review = Tables<"reviews">;
 export type ReviewInsert = TablesInsert<"reviews">;
 
+export type ReviewComment = Tables<"review_comments">;
+
 export type Note = Tables<"notes">;
 export type NoteInsert = TablesInsert<"notes">;
 
@@ -65,6 +67,8 @@ export interface BookDetail {
   /** Signed URL que força o download do PDF original. */
   pdfUrl: string | null;
   review: Review | null;
+  /** Comentários na resenha (0 sem resenha). */
+  commentCount: number;
 }
 
 export const READING_STATUS_LABEL: Record<ReadingStatus, string> = {

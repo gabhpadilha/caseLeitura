@@ -126,11 +126,14 @@ export async function getBookDetail(bookId: string): Promise<BookDetail | null> 
   if (!book) return null;
 
   const bucket = supabase.storage.from(BOOKS_BUCKET);
-  const [covers, pdf] = await Promise.all([
+  const [covers, pdf, comments] = await Promise.all([
     signPaths(supabase, [book.cover_path]),
     bucket.createSignedUrl(book.pdf_path, SIGNED_URL_TTL, {
       download: `${book.title}.${book.pdf_path.split(".").pop() ?? "pdf"}`,
     }),
+    review
+      ? supabase.from("review_comments").select("id", { count: "exact", head: true }).eq("review_id", review.id)
+      : null,
   ]);
 
   return {
@@ -138,6 +141,7 @@ export async function getBookDetail(bookId: string): Promise<BookDetail | null> 
     coverUrl: book.cover_path ? (covers.get(book.cover_path) ?? null) : null,
     pdfUrl: pdf.data?.signedUrl ?? null,
     review,
+    commentCount: comments?.count ?? 0,
   };
 }
 
@@ -241,6 +245,7 @@ export interface TimelinePost {
   sharedAt: string;
   /** Post de quem está vendo (leva à página do livro, não à estante pública). */
   mine: boolean;
+  commentCount: number;
 }
 
 export const TIMELINE_PAGE = 20;
@@ -271,6 +276,7 @@ export async function getTimeline(
     spoiler: r.spoiler,
     sharedAt: r.shared_at,
     mine: r.user_id === me,
+    commentCount: r.comment_count,
   }));
   return { posts, nextBefore: posts.length === TIMELINE_PAGE ? posts[posts.length - 1].sharedAt : null };
 }
@@ -286,9 +292,11 @@ export interface MemberBook {
   createdAt: string;
   finishedAt: string | null;
   /** Nota e resenha só quando o dono compartilhou. */
+  reviewId: string | null;
   rating: number | null;
   review: string | null;
   spoiler: boolean;
+  commentCount: number;
 }
 
 export interface Member {
@@ -312,9 +320,11 @@ async function memberBooks(supabase: ServerClient, userId: string): Promise<Memb
     coverUrl: r.cover_path ? (urlByPath.get(r.cover_path) ?? null) : null,
     createdAt: r.created_at,
     finishedAt: r.finished_at,
+    reviewId: r.review_id,
     rating: r.rating,
     review: r.review?.trim() || null,
     spoiler: Boolean(r.spoiler),
+    commentCount: r.comment_count,
   }));
 }
 
@@ -354,5 +364,72 @@ export async function getMemberShelf(userId: string): Promise<(Member & { books:
     name: profile.display_name?.trim() || UNNAMED_READER,
     isMe: profile.id === me,
     books: await memberBooks(supabase, profile.id),
+  };
+}
+
+export interface ThreadComment {
+  id: string;
+  userId: string;
+  userName: string;
+  content: string;
+  createdAt: string;
+  /** Quem está vendo pode apagar: é o autor do comentário ou o dono da resenha. */
+  canDelete: boolean;
+}
+
+export interface ReviewThread {
+  post: Omit<TimelinePost, "sharedAt"> & { sharedAt: string | null; shared: boolean };
+  comments: ThreadComment[];
+}
+
+/** A resenha e a conversa dela; null se não existe ou não está visível para quem pede. */
+export async function getReviewThread(reviewId: string): Promise<ReviewThread | null> {
+  if (!UUID.test(reviewId)) return null;
+  const supabase = await createClient();
+  const [{ data: rows }, { data: comments }, me] = await Promise.all([
+    supabase.rpc("review_post", { p_review: reviewId }),
+    supabase
+      .from("review_comments")
+      .select("id, user_id, content, created_at")
+      .eq("review_id", reviewId)
+      .order("created_at"),
+    currentUserId(supabase),
+  ]);
+  const r = rows?.[0];
+  if (!r) return null;
+
+  const people = [...new Set([r.user_id, ...(comments ?? []).map((c) => c.user_id)])];
+  const [covers, { data: profiles }] = await Promise.all([
+    signPaths(supabase, [r.cover_path]),
+    supabase.from("profiles").select("id, display_name").in("id", people),
+  ]);
+  const nameOf = new Map((profiles ?? []).map((p) => [p.id, p.display_name?.trim() || UNNAMED_READER]));
+  const ownsReview = r.user_id === me;
+
+  return {
+    post: {
+      reviewId: r.review_id,
+      userId: r.user_id,
+      userName: r.user_name?.trim() || UNNAMED_READER,
+      bookId: r.book_id,
+      bookTitle: r.book_title,
+      bookAuthor: r.book_author,
+      coverUrl: r.cover_path ? (covers.get(r.cover_path) ?? null) : null,
+      rating: r.rating,
+      content: r.content,
+      spoiler: r.spoiler,
+      shared: r.shared,
+      sharedAt: r.shared_at,
+      mine: ownsReview,
+      commentCount: r.comment_count,
+    },
+    comments: (comments ?? []).map((c) => ({
+      id: c.id,
+      userId: c.user_id,
+      userName: nameOf.get(c.user_id) ?? UNNAMED_READER,
+      content: c.content,
+      createdAt: c.created_at,
+      canDelete: c.user_id === me || ownsReview,
+    })),
   };
 }

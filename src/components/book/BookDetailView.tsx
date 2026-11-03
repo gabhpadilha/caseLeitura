@@ -25,7 +25,7 @@ function Chip({ children }: { children: ReactNode }) {
 
 /** Página do livro: capa grande, ação principal, nota, resenha e detalhes. */
 export function BookDetailView({ data }: BookDetailViewProps) {
-  const { book, coverUrl, pdfUrl, review } = data;
+  const { book, coverUrl, pdfUrl, review, commentCount } = data;
   const readable = book.processing_status === "ready";
   const started = book.progress > 0;
   const finished = book.status === "finished";
@@ -140,7 +140,7 @@ export function BookDetailView({ data }: BookDetailViewProps) {
       </header>
 
       <div className="mt-16 grid gap-10 lg:grid-cols-[1.6fr_1fr] lg:gap-14">
-        <ReviewCard bookId={book.id} review={review} />
+        <ReviewCard bookId={book.id} review={review} commentCount={commentCount} />
 
         <section aria-labelledby="detalhes">
           <h2 id="detalhes" className="mb-6 font-display text-3xl font-medium sm:text-4xl">

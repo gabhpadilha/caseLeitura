@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { EyeOff, Lock, Pencil, Users } from "lucide-react";
+import Link from "next/link";
+import { EyeOff, Lock, MessageCircle, Pencil, Users } from "lucide-react";
 import { formatDate } from "@/lib/books/format";
 import type { Review } from "@/types/book";
 import { ReviewForm } from "./ReviewForm";
@@ -10,10 +11,12 @@ import { ReviewForm } from "./ReviewForm";
 interface ReviewCardProps {
   bookId: string;
   review: Review | null;
+  /** Comentários dos outros leitores na resenha. */
+  commentCount?: number;
 }
 
 /** "Minha resenha": leitura com "Editar", ou o formulário quando ainda não há resenha. */
-export function ReviewCard({ bookId, review }: ReviewCardProps) {
+export function ReviewCard({ bookId, review, commentCount = 0 }: ReviewCardProps) {
   const router = useRouter();
   const hasReview = Boolean(review?.content.trim());
   const [editing, setEditing] = useState(!hasReview);
@@ -70,6 +73,17 @@ export function ReviewCard({ bookId, review }: ReviewCardProps) {
             )}
             {review?.updated_at && <span className="text-graphite">Escrita em {formatDate(review.updated_at)}</span>}
           </div>
+          {review && (review.shared || commentCount > 0) && (
+            <Link
+              href={`/resenha/${review.id}`}
+              className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-coral-dark hover:underline"
+            >
+              <MessageCircle className="size-4" aria-hidden />
+              {commentCount === 0
+                ? "Ver na timeline"
+                : `${commentCount} ${commentCount === 1 ? "comentário" : "comentários"} · ver conversa`}
+            </Link>
+          )}
         </>
       )}
     </section>

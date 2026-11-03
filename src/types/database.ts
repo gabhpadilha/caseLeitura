@@ -207,6 +207,38 @@ export type Database = {
         };
         Relationships: [];
       };
+      review_comments: {
+        Row: {
+          id: string;
+          review_id: string;
+          user_id: string;
+          content: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          review_id: string;
+          user_id?: string;
+          content: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          review_id?: string;
+          user_id?: string;
+          content?: string;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "review_comments_review_id_fkey";
+            columns: ["review_id"];
+            isOneToOne: false;
+            referencedRelation: "reviews";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       notes: {
         Row: {
           id: string;
@@ -271,9 +303,11 @@ export type Database = {
           cover_path: string | null;
           created_at: string;
           finished_at: string | null;
+          review_id: string | null;
           rating: number | null;
           review: string | null;
           spoiler: boolean | null;
+          comment_count: number;
         }[];
       };
       timeline: {
@@ -291,6 +325,26 @@ export type Database = {
           spoiler: boolean;
           shared_at: string;
           updated_at: string;
+          comment_count: number;
+        }[];
+      };
+      review_post: {
+        Args: { p_review: string };
+        Returns: {
+          review_id: string;
+          user_id: string;
+          user_name: string | null;
+          book_id: string;
+          book_title: string;
+          book_author: string | null;
+          cover_path: string | null;
+          rating: number | null;
+          content: string;
+          spoiler: boolean;
+          shared: boolean;
+          shared_at: string | null;
+          updated_at: string;
+          comment_count: number;
         }[];
       };
     };

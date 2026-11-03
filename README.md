@@ -174,3 +174,7 @@ Regras aplicadas no banco (`supabase/migrations/20261103000000_community.sql`):
 Telas: `/timeline` (resenhas compartilhadas, paginação por `?antes=`; spoiler borrado até tocar),
 `/leitores` (cada leitor com o que está lendo) e `/leitores/[id]` (estante pública e resenhas, sem ler
 nem baixar).
+
+Comentários (`20261104000000_review_comments.sql`): só em resenha compartilhada; sem edição; apaga o autor
+ou o dono da resenha. A conversa fica em `/resenha/[id]`; timeline, estantes e a página do livro mostram a
+contagem.

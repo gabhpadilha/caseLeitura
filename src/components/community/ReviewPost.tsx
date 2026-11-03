@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Star } from "lucide-react";
+import { MessageCircle, Star } from "lucide-react";
 import { BookCover } from "@/components/gallery/BookCover";
 import { relativeTime } from "@/lib/books/format";
 import { Avatar } from "./Avatar";
@@ -14,6 +14,8 @@ interface ReviewPostProps {
   sharedAt: string | null;
   /** Esconde o cabeçalho com o leitor (na estante de alguém, já se sabe de quem é). */
   hideAuthor?: boolean;
+  /** Link para a conversa ("3 comentários"); omitido na própria página da conversa. */
+  comments?: { href: string; count: number };
 }
 
 function Stars({ rating }: { rating: number }) {
@@ -27,7 +29,16 @@ function Stars({ rating }: { rating: number }) {
 }
 
 /** Um post da timeline: quem, quando, o livro, a nota e a resenha (com spoiler escondido). */
-export function ReviewPost({ author, book, rating, content, spoiler, sharedAt, hideAuthor = false }: ReviewPostProps) {
+export function ReviewPost({
+  author,
+  book,
+  rating,
+  content,
+  spoiler,
+  sharedAt,
+  hideAuthor = false,
+  comments,
+}: ReviewPostProps) {
   // Seu próprio livro abre a página dele; o dos outros, a estante pública de quem resenhou.
   const bookHref = author.mine ? `/livros/${book.id}` : `/leitores/${author.id}`;
   const text = <p className="font-serif text-lg leading-relaxed whitespace-pre-line">{content}</p>;
@@ -65,6 +76,20 @@ export function ReviewPost({ author, book, rating, content, spoiler, sharedAt, h
       </div>
 
       <div className="mt-5">{spoiler ? <Spoiler>{text}</Spoiler> : text}</div>
+
+      {comments && (
+        <footer className="mt-5 border-t border-ink/10 pt-4">
+          <Link
+            href={comments.href}
+            className="inline-flex items-center gap-2 text-sm font-semibold text-coral-dark hover:underline"
+          >
+            <MessageCircle className="size-4" aria-hidden />
+            {comments.count === 0
+              ? "Comentar"
+              : `${comments.count} ${comments.count === 1 ? "comentário" : "comentários"}`}
+          </Link>
+        </footer>
+      )}
     </article>
   );
 }
