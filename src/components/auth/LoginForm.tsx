@@ -2,11 +2,15 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Eye, EyeOff, Loader2, MailCheck } from "lucide-react";
+import { Eye, EyeOff, Loader2, MailCheck, MailOpen } from "lucide-react";
 import { AUTH_NOTICE, AUTH_SUCCESS, authErrorMessage, isEmailNotConfirmed } from "@/lib/auth/messages";
 import { createClient } from "@/lib/supabase/client";
 
 type Mode = "entrar" | "cadastrar";
+
+/** Convite da URL (?convite=…): o banco só aceita cadastro com um convite válido. */
+type Invite =
+  { status: "none" } | { status: "checking" } | { status: "invalid" } | { status: "valid"; inviter: string | null };
 
 // Login com Google só aparece depois de configurado (Google Cloud + Supabase):
 // cadastre NEXT_PUBLIC_AUTH_GOOGLE=on na Vercel. Sem isso o botão daria erro.
@@ -23,10 +27,22 @@ const primary =
 function GoogleIcon() {
   return (
     <svg viewBox="0 0 48 48" className="size-[1.1rem]" aria-hidden>
-      <path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 8 3l5.7-5.7C34 6.1 29.3 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.3-.1-2.6-.4-3.9z" />
-      <path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 8 3l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z" />
-      <path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2c-2 1.5-4.5 2.4-7.2 2.4-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z" />
-      <path fill="#1976D2" d="M43.6 20.1H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.6-.4-3.9z" />
+      <path
+        fill="#FFC107"
+        d="M43.6 20.1H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 8 3l5.7-5.7C34 6.1 29.3 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.3-.1-2.6-.4-3.9z"
+      />
+      <path
+        fill="#FF3D00"
+        d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 8 3l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"
+      />
+      <path
+        fill="#4CAF50"
+        d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2c-2 1.5-4.5 2.4-7.2 2.4-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"
+      />
+      <path
+        fill="#1976D2"
+        d="M43.6 20.1H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.6-.4-3.9z"
+      />
     </svg>
   );
 }
@@ -37,7 +53,9 @@ export function LoginForm() {
   const notice = AUTH_NOTICE[params.get("erro") ?? ""] ?? null;
   const success = AUTH_SUCCESS[params.get("aviso") ?? ""] ?? null;
 
-  const [mode, setMode] = useState<Mode>("entrar");
+  const inviteToken = params.get("convite");
+  const [invite, setInvite] = useState<Invite>(inviteToken ? { status: "checking" } : { status: "none" });
+  const [mode, setMode] = useState<Mode>(inviteToken ? "cadastrar" : "entrar");
   const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(notice);
@@ -52,6 +70,28 @@ export function LoginForm() {
     const t = setTimeout(() => setCooldown((c) => c - 1), 1000);
     return () => clearTimeout(t);
   }, [cooldown]);
+
+  // Confere o convite só para a interface; quem decide de verdade é o gatilho do banco.
+  useEffect(() => {
+    if (!inviteToken) return;
+    let alive = true;
+    createClient()
+      .rpc("check_invite", { p_token: inviteToken })
+      .then(({ data }) => {
+        if (!alive) return;
+        const row = data?.[0];
+        if (row?.valid) setInvite({ status: "valid", inviter: row.inviter_name });
+        else {
+          setInvite({ status: "invalid" });
+          setMode("entrar");
+        }
+      });
+    return () => {
+      alive = false;
+    };
+  }, [inviteToken]);
+
+  const canSignUp = invite.status === "valid";
 
   const confirmUrl = () => `${window.location.origin}/auth/confirm`;
 
@@ -89,7 +129,7 @@ export function LoginForm() {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { display_name: name }, emailRedirectTo: confirmUrl() },
+      options: { data: { display_name: name, invite: inviteToken }, emailRedirectTo: confirmUrl() },
     });
     setBusy(false);
     if (error) return setError(authErrorMessage(error.message));
@@ -133,8 +173,8 @@ export function LoginForm() {
         </span>
         <h2 className="font-display text-3xl font-semibold">Confira seu e-mail</h2>
         <p className="text-sm leading-relaxed text-graphite">
-          Enviamos um link de confirmação para <strong className="text-ink">{sentTo}</strong>. Abra o
-          e-mail e toque em “Confirmar meu e-mail” para entrar na sua estante.
+          Enviamos um link de confirmação para <strong className="text-ink">{sentTo}</strong>. Abra o e-mail e toque em
+          “Confirmar meu e-mail” para entrar na sua estante.
         </p>
         <p className="text-xs text-graphite">Não chegou? Veja o spam ou as promoções.</p>
         {error && <p className="text-sm text-coral-dark">{error}</p>}
@@ -163,22 +203,48 @@ export function LoginForm() {
 
   return (
     <div className="flex flex-col gap-5">
-      <div role="tablist" aria-label="Acesso" className="grid grid-cols-2 rounded-full bg-paper p-1 ring-1 ring-ink/5">
-        {(["entrar", "cadastrar"] as const).map((m) => (
-          <button
-            key={m}
-            role="tab"
-            type="button"
-            aria-selected={mode === m}
-            onClick={() => switchMode(m)}
-            className={`rounded-full py-2 text-sm font-medium transition-colors ${
-              mode === m ? "bg-ink text-paper shadow-sm" : "text-graphite hover:text-ink"
-            }`}
-          >
-            {m === "entrar" ? "Entrar" : "Criar conta"}
-          </button>
-        ))}
-      </div>
+      {invite.status === "checking" && (
+        <p className="flex items-center justify-center gap-2 text-sm text-graphite">
+          <Loader2 className="size-4 animate-spin" aria-hidden /> Conferindo o convite…
+        </p>
+      )}
+      {invite.status === "valid" && (
+        <p className="flex items-start gap-3 rounded-2xl bg-sage-soft px-4 py-3 text-sm text-[#2F5654]">
+          <MailOpen className="mt-0.5 size-4 shrink-0" aria-hidden />
+          <span>
+            {invite.inviter ? <strong>{invite.inviter}</strong> : "Alguém"} convidou você para o caseLeitura. Crie sua
+            conta para montar a sua estante.
+          </span>
+        </p>
+      )}
+      {invite.status === "invalid" && (
+        <p role="alert" className="rounded-2xl bg-coral-soft px-4 py-3 text-sm text-coral-dark">
+          Esse convite expirou ou já foi usado. Peça um novo link para quem convidou você.
+        </p>
+      )}
+
+      {canSignUp && (
+        <div
+          role="tablist"
+          aria-label="Acesso"
+          className="grid grid-cols-2 rounded-full bg-paper p-1 ring-1 ring-ink/5"
+        >
+          {(["entrar", "cadastrar"] as const).map((m) => (
+            <button
+              key={m}
+              role="tab"
+              type="button"
+              aria-selected={mode === m}
+              onClick={() => switchMode(m)}
+              className={`rounded-full py-2 text-sm font-medium transition-colors ${
+                mode === m ? "bg-ink text-paper shadow-sm" : "text-graphite hover:text-ink"
+              }`}
+            >
+              {m === "entrar" ? "Entrar" : "Criar conta"}
+            </button>
+          ))}
+        </div>
+      )}
 
       {GOOGLE_ENABLED && (
         <>
@@ -269,6 +335,12 @@ export function LoginForm() {
           {mode === "entrar" ? "Entrar" : "Criar conta"}
         </button>
       </form>
+
+      {!canSignUp && invite.status !== "checking" && (
+        <p className="text-center text-xs leading-relaxed text-graphite">
+          Ainda não tem conta? O caseLeitura é só para convidados: peça um link de convite para quem já usa.
+        </p>
+      )}
     </div>
   );
 }

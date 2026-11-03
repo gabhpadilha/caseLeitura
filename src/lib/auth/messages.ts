@@ -9,6 +9,8 @@ const RULES: [RegExp, string][] = [
   [/rate limit|too many requests|security purposes/i, "Muitas tentativas seguidas. Espere alguns minutos e tente de novo."],
   [/provider is not enabled|unsupported provider/i, "O login com Google ainda não foi ativado."],
   [/signups not allowed|signup is disabled/i, "Novos cadastros estão desativados no momento."],
+  // O gatilho do banco recusou o cadastro (convite ausente, usado ou vencido).
+  [/database error saving new user|invite_/i, "Esse convite expirou ou já foi usado. Peça um novo link para quem convidou você."],
   [/failed to fetch|network/i, "Sem conexão com o servidor. Verifique sua internet."],
 ];
 

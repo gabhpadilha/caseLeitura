@@ -157,3 +157,16 @@ Para redesenhar os ícones, edite e rode `node scripts/generate-icons.mjs`.
 
 Nunca cadastre a chave `service_role` / `sb_secret_…` em variáveis `NEXT_PUBLIC_*`:
 elas vão parar no navegador.
+
+## Comunidade (convites, galerias e timeline)
+
+Regras aplicadas no banco (`supabase/migrations/20261103000000_community.sql`):
+
+- **Só por convite:** um gatilho em `auth.users` recusa qualquer cadastro sem um convite válido
+  (`{ invite: "<token>" }` nos metadados). Cada link vale para uma pessoa e expira em 7 dias; até 5 ativos
+  por pessoa (`create_invite()`). O avatar → "Convidar alguém" gera e compartilha o link `/login?convite=…`.
+- **Galerias visíveis, conteúdo não:** os outros membros leem os livros só por `member_books(user)`
+  (capa, título, autor, estado, categorias). Progresso, caminhos e arquivos ficam com o dono; do Storage,
+  os outros só abrem `cover.webp`.
+- **Resenhas:** `reviews.shared` e `reviews.spoiler`. Só as compartilhadas aparecem para os outros e na
+  `timeline()`.

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Loader2, LogOut } from "lucide-react";
 import { Modal, modalField, modalPrimaryButton, modalSecondaryButton } from "@/components/ui/Modal";
 import { createClient } from "@/lib/supabase/client";
+import { InviteSection } from "./InviteSection";
 
 interface ProfileButtonProps {
   /** Nome exibido hoje (escolhido ou derivado do e-mail). */
@@ -84,7 +85,7 @@ export function ProfileButton({ name, displayName, email }: ProfileButtonProps) 
             </div>
           </div>
           <label className="flex flex-col gap-1.5 text-sm font-medium">
-            Nome na saudação
+            Seu nome
             <input
               name="displayName"
               maxLength={NAME_MAX}
@@ -95,9 +96,10 @@ export function ProfileButton({ name, displayName, email }: ProfileButtonProps) 
             />
           </label>
           <p className="-mt-2 text-xs text-graphite">
-            Aparece em “Boa leitura, …”. Em branco, usamos o começo do seu e-mail.
+            Aparece na saudação e para os outros leitores, junto das resenhas que você compartilhar.
           </p>
           {error && <p className="text-sm text-coral-dark">{error}</p>}
+          <InviteSection />
           <div className="mt-2 flex items-center gap-2">
             <button
               type="button"

@@ -140,6 +140,9 @@ export type Database = {
           user_id: string;
           rating: number | null;
           content: string;
+          shared: boolean;
+          spoiler: boolean;
+          shared_at: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -149,6 +152,9 @@ export type Database = {
           user_id?: string;
           rating?: number | null;
           content?: string;
+          shared?: boolean;
+          spoiler?: boolean;
+          shared_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -158,6 +164,9 @@ export type Database = {
           user_id?: string;
           rating?: number | null;
           content?: string;
+          shared?: boolean;
+          spoiler?: boolean;
+          shared_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -170,6 +179,33 @@ export type Database = {
             referencedColumns: ["id", "user_id"];
           },
         ];
+      };
+      invites: {
+        Row: {
+          token: string;
+          created_by: string;
+          created_at: string;
+          expires_at: string;
+          used_by: string | null;
+          used_at: string | null;
+        };
+        Insert: {
+          token?: string;
+          created_by?: string;
+          created_at?: string;
+          expires_at?: string;
+          used_by?: string | null;
+          used_at?: string | null;
+        };
+        Update: {
+          token?: string;
+          created_by?: string;
+          created_at?: string;
+          expires_at?: string;
+          used_by?: string | null;
+          used_at?: string | null;
+        };
+        Relationships: [];
       };
       notes: {
         Row: {
@@ -214,7 +250,50 @@ export type Database = {
       };
     };
     Views: { [_ in never]: never };
-    Functions: { [_ in never]: never };
+    Functions: {
+      create_invite: {
+        Args: Record<PropertyKey, never>;
+        Returns: Database["public"]["Tables"]["invites"]["Row"];
+      };
+      check_invite: {
+        Args: { p_token: string };
+        Returns: { valid: boolean; inviter_name: string | null }[];
+      };
+      member_books: {
+        Args: { p_user: string };
+        Returns: {
+          id: string;
+          title: string;
+          author: string | null;
+          status: Database["public"]["Enums"]["reading_status"];
+          kind: Database["public"]["Enums"]["book_kind"];
+          categories: string[];
+          cover_path: string | null;
+          created_at: string;
+          finished_at: string | null;
+          rating: number | null;
+          review: string | null;
+          spoiler: boolean | null;
+        }[];
+      };
+      timeline: {
+        Args: { p_before?: string | null; p_limit?: number };
+        Returns: {
+          review_id: string;
+          user_id: string;
+          user_name: string | null;
+          book_id: string;
+          book_title: string;
+          book_author: string | null;
+          cover_path: string | null;
+          rating: number | null;
+          content: string;
+          spoiler: boolean;
+          shared_at: string;
+          updated_at: string;
+        }[];
+      };
+    };
     Enums: {
       reading_status: "to_read" | "reading" | "finished" | "abandoned";
       processing_status: "pending" | "ready" | "failed";
