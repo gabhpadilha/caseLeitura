@@ -9,6 +9,7 @@ import {
   type GalleryView,
 } from "@/lib/books/gallery";
 import { SHELVES } from "@/types/book";
+import { FilterSheet } from "./FilterSheet";
 
 interface LibraryFiltersProps {
   filters: GalleryFilters;
@@ -20,7 +21,7 @@ const chipRow =
 
 /** Busca + abas de estado + categorias + ordem. Tudo é link: funciona sem JS e no "voltar". */
 export function LibraryFilters({ filters, view }: LibraryFiltersProps) {
-  const tabs: { slug: string | null; label: string; count: number }[] = [
+  const tabs: Tab[] = [
     { slug: null, label: "Todos", count: view.shelfCounts.todos },
     ...SHELVES.map((s) => ({
       slug: s.slug,
@@ -69,11 +70,17 @@ export function LibraryFilters({ filters, view }: LibraryFiltersProps) {
             )}
           </Form>
           {/* No diário de lidos a ordem é a do término (agrupado por ano). */}
-          {filters.shelf?.slug !== "lidos" && <SortMenu filters={filters} />}
+          {filters.shelf?.slug !== "lidos" && (
+            <div className="hidden sm:block">
+              <SortMenu filters={filters} />
+            </div>
+          )}
         </div>
       </div>
 
-      <nav aria-label="Filtrar por estado" className={`${chipRow} pt-3`}>
+      <MobileFilters filters={filters} view={view} tabs={tabs} />
+
+      <nav aria-label="Filtrar por estado" className={`${chipRow} hidden pt-3 sm:flex`}>
         {tabs.map((tab) => {
           const active = (filters.shelf?.slug ?? null) === tab.slug;
           return (
@@ -98,7 +105,7 @@ export function LibraryFilters({ filters, view }: LibraryFiltersProps) {
 
       <nav
         aria-label="Filtrar por categoria"
-        className={`${chipRow} items-center`}
+        className={`${chipRow} hidden items-center sm:flex`}
       >
         {(filters.category || categories.length > 0) && (
           <span className="shrink-0 text-xs font-semibold tracking-wider text-graphite uppercase">
@@ -126,6 +133,83 @@ export function LibraryFilters({ filters, view }: LibraryFiltersProps) {
           </Link>
         ))}
       </nav>
+    </div>
+  );
+}
+
+type Tab = { slug: string | null; label: string; count: number };
+
+const sheetOption = "flex items-center justify-between gap-3 rounded-2xl px-4 py-3.5 text-base hover:bg-ink/5";
+
+function OptionMark({ on }: { on: boolean }) {
+  return on ? <Check className="size-5 shrink-0 text-coral-dark" aria-hidden /> : null;
+}
+
+/** Celular: três botões numa linha (estado, categoria, ordem), cada um abre uma folha de opções. */
+function MobileFilters({ filters, view, tabs }: LibraryFiltersProps & { tabs: Tab[] }) {
+  const shelf = tabs.find((t) => t.slug === (filters.shelf?.slug ?? null))!;
+  const category = findCategory(filters.category);
+  const sort = SORTS.find((s) => s.slug === filters.sort)!;
+  const showSort = filters.shelf?.slug !== "lidos";
+
+  return (
+    <div className="flex gap-2 pt-1 sm:hidden">
+      <FilterSheet caption="Estado" label={`${shelf.label} · ${shelf.count}`} active={!!filters.shelf} title="Estado da leitura">
+        {tabs.map((tab) => (
+          <Link key={tab.label} href={galleryHref(filters, { estado: tab.slug })} className={sheetOption}>
+            <span>
+              {tab.label} <span className="text-graphite">{tab.count}</span>
+            </span>
+            <OptionMark on={tab.slug === shelf.slug} />
+          </Link>
+        ))}
+      </FilterSheet>
+
+      <FilterSheet caption="Categoria" label={category?.label ?? "Todas"} active={!!category} title="Categoria">
+        <Link href={galleryHref(filters, { categoria: null })} className={sheetOption}>
+          Todas as categorias
+          <OptionMark on={!category} />
+        </Link>
+        {category && !view.categoryCounts.some((c) => c.slug === category.slug) && (
+          <Link href={galleryHref(filters, { categoria: category.slug })} className={sheetOption}>
+            {category.label} <OptionMark on />
+          </Link>
+        )}
+        {view.categoryCounts.map((c) => (
+          <Link key={c.slug} href={galleryHref(filters, { categoria: c.slug })} className={sheetOption}>
+            <span>
+              {findCategory(c.slug)?.label} <span className="text-graphite">{c.count}</span>
+            </span>
+            <OptionMark on={c.slug === filters.category} />
+          </Link>
+        ))}
+        {view.categoryCounts.length === 0 && (
+          <p className="px-4 py-3 text-sm text-graphite">
+            Nenhum livro com categoria ainda. Escolha as categorias na página de cada livro.
+          </p>
+        )}
+      </FilterSheet>
+
+      {showSort && (
+        <FilterSheet
+          caption="Ordem"
+          label={sort.label}
+          active={filters.sort !== "recentes"}
+          title="Ordenar por"
+          icon={<ArrowDownUp className="size-5" aria-hidden />}
+        >
+          {SORTS.map((s) => (
+            <Link
+              key={s.slug}
+              href={galleryHref(filters, { ordem: s.slug === "recentes" ? null : s.slug })}
+              className={sheetOption}
+            >
+              {s.label}
+              <OptionMark on={s.slug === filters.sort} />
+            </Link>
+          ))}
+        </FilterSheet>
+      )}
     </div>
   );
 }
