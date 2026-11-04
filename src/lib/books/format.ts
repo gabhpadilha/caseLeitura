@@ -40,6 +40,11 @@ export function matchesQuery(book: Pick<BookCard, "title" | "author">, query: st
   return normalize(`${book.title} ${book.author ?? ""}`).includes(q);
 }
 
+/** Busca por nome de leitor, sem diferenciar acentos nem maiúsculas. */
+export function matchesName(name: string, query: string): boolean {
+  return normalize(name).includes(normalize(query.trim()));
+}
+
 /** Nota no formato do design: "4,0", "3,5". */
 export function formatRating(rating: number): string {
   return rating.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
