@@ -324,13 +324,15 @@ export function Reader({ book, contentUrl, imageUrls, initialSettings }: ReaderP
             </span>
           )}
         </p>
-        <p className={`justify-self-end text-sm tabular-nums ${theme.muted}`}>
+        {/* No celular a página já aparece na barra de baixo; aqui ela quebraria em
+            várias linhas e a barra cresceria por cima do texto. */}
+        <p className={`hidden justify-self-end text-sm whitespace-nowrap tabular-nums sm:block ${theme.muted}`}>
           {ready && `pág. ${page + 1} de ${pageCount}`}
         </p>
       </header>
 
       <main
-        className="relative min-h-0 flex-1 touch-pan-y select-text pt-[max(4.25rem,env(safe-area-inset-top))] pb-[calc(4.5rem+env(safe-area-inset-bottom))]"
+        className="relative min-h-0 flex-1 touch-pan-y select-text pt-[max(4.25rem,calc(env(safe-area-inset-top)+3.25rem))] pb-[calc(4.5rem+env(safe-area-inset-bottom))]"
         onPointerDown={onPointerDown}
         onPointerUp={onPointerUp}
         onPointerCancel={() => (pointerStart.current = null)}

@@ -281,11 +281,11 @@ export function ComicReader({ book, pages }: ComicReaderProps) {
           <ChevronLeft className="size-4" aria-hidden />
           Voltar
         </Link>
-        <p className="max-w-[55vw] truncate text-center font-display text-lg">
+        <p className="max-w-[45vw] sm:max-w-[55vw] truncate text-center font-display text-lg">
           {book.title}
           {book.author && <span className="hidden text-[#a9a296] sm:inline"> · <em>{book.author}</em></span>}
         </p>
-        <p className="justify-self-end text-sm text-[#a9a296] tabular-nums">{pageLabel}</p>
+        <p className="justify-self-end text-sm whitespace-nowrap text-[#a9a296] tabular-nums">{pageLabel}</p>
       </header>
 
       <main
