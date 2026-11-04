@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { READING_STATUS_LABEL, type ReadingStatus } from "@/types/book";
 
-const BADGE_CLASSES: Record<ReadingStatus, string> = {
+export const BADGE_CLASSES: Record<ReadingStatus, string> = {
   reading: "bg-coral-soft text-coral-dark",
   to_read: "bg-sage-soft text-[#2F5654]",
   finished: "bg-wood-soft text-[#7A5A30]",

@@ -10,14 +10,14 @@ interface ContinueReadingProps {
   book: BookCard | null;
 }
 
-const card =
+export const continueCard =
   "flex items-center gap-5 rounded-[2rem] bg-paper-soft p-4 shadow-[0_20px_40px_-30px_rgba(36,35,43,0.4)] ring-1 ring-ink/5 sm:gap-7 sm:p-5 sm:pr-7";
 
 /** Atalho do topo da galeria: volta direto para a leitura em andamento. */
 export function ContinueReading({ name, book }: ContinueReadingProps) {
   if (!book) {
     return (
-      <section className={card}>
+      <section className={continueCard}>
         <div className="min-w-0 flex-1 px-2 py-3">
           <p className="text-xs font-semibold tracking-widest text-coral-dark uppercase">
             Boa leitura{name ? `, ${name}` : ""}
@@ -41,7 +41,7 @@ export function ContinueReading({ name, book }: ContinueReadingProps) {
   const page = estimatedPage(book.progress, book.page_count);
 
   return (
-    <section className={card}>
+    <section className={continueCard}>
       <Link href={`/livros/${book.id}`} aria-label={`Página de ${book.title}`} className="shrink-0">
         <BookCover
           title={book.title}
