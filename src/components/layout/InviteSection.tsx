@@ -5,8 +5,8 @@ import { Check, Copy, Loader2, Send, UserPlus } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 /**
- * Gera um link de convite (uso único, 7 dias). O banco cria o token e aplica
- * o limite de convites ativos; aqui só mostramos e compartilhamos o link.
+ * Gera um link de convite (uso único, 7 dias). O banco cria o token;
+ * aqui só mostramos e compartilhamos o link.
  */
 export function InviteSection() {
   const [link, setLink] = useState<string | null>(null);

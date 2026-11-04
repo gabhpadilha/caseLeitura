@@ -19,6 +19,62 @@ const IMAGE_UPLOAD_CONCURRENCY = 4;
 
 type Bucket = ReturnType<ReturnType<typeof createClient>["storage"]["from"]>;
 
+/** Limite de envio do Storage no plano gratuito (igual ao do bucket `books`). */
+export const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
+
+/** Tentativas por arquivo e espera (ms) entre elas, para quedas curtas de rede. */
+const UPLOAD_ATTEMPTS = 3;
+const RETRY_DELAY_MS = 1200;
+
+interface StorageFailure {
+  message: string;
+  statusCode?: string | number;
+  status?: number;
+}
+
+/** Erro de rede (nunca chegou ao servidor) ou do servidor: vale tentar de novo. */
+function isTransient(error: StorageFailure): boolean {
+  const code = Number(error.statusCode ?? error.status);
+  if (code >= 500) return true;
+  if (code >= 400) return false;
+  return /failed to fetch|networkerror|load failed|network request failed|timeout|abort/i.test(error.message);
+}
+
+/** Traduz o erro do Storage para uma frase que a pessoa entende. */
+export function friendlyUploadError(error: StorageFailure): string {
+  const code = Number(error.statusCode ?? error.status);
+  const msg = error.message;
+  if (isTransient(error) && !(code >= 500)) {
+    return "A conexão com a internet falhou durante o envio. Confira o Wi-Fi ou os dados e tente de novo.";
+  }
+  if (code === 413 || /exceeded the maximum|too large/i.test(msg)) {
+    return `O arquivo passa do limite de ${MAX_UPLOAD_BYTES / 1024 / 1024} MB. Reduza o PDF e tente de novo.`;
+  }
+  if (code === 415 || /mime type|not supported/i.test(msg)) {
+    return "Esse formato de arquivo não é aceito. Envie um PDF.";
+  }
+  if (code === 401 || code === 403 || /row-level security|jwt|not authorized|unauthorized/i.test(msg)) {
+    return "Sua sessão expirou. Saia, entre de novo e tente outra vez.";
+  }
+  if (code >= 500) return "O servidor está instável agora. Aguarde um instante e tente de novo.";
+  return `Falha no upload: ${msg}`;
+}
+
+/** Envia um arquivo, repetindo se a rede ou o servidor falharem de passagem. */
+async function uploadWithRetry(
+  bucket: Bucket,
+  path: string,
+  body: Parameters<Bucket["upload"]>[1],
+  options: Parameters<Bucket["upload"]>[2],
+) {
+  let result = await bucket.upload(path, body, { ...options, upsert: true });
+  for (let attempt = 1; attempt < UPLOAD_ATTEMPTS && result.error && isTransient(result.error); attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS * attempt));
+    result = await bucket.upload(path, body, { ...options, upsert: true });
+  }
+  return result;
+}
+
 /** Envia as ilustrações para `folder`, em lotes. Devolve os caminhos enviados. */
 async function uploadImages(bucket: Bucket, folder: string, images: ExtractedImage[]) {
   const paths: string[] = [];
@@ -26,7 +82,7 @@ async function uploadImages(bucket: Bucket, folder: string, images: ExtractedIma
     const batch = images.slice(i, i + IMAGE_UPLOAD_CONCURRENCY);
     const results = await Promise.all(
       batch.map(({ name, blob }) =>
-        bucket.upload(`${folder}/${name}`, blob, { contentType: blob.type, upsert: true }),
+        uploadWithRetry(bucket, `${folder}/${name}`, blob, { contentType: blob.type }),
       ),
     );
     paths.push(...batch.map(({ name }) => `${folder}/${name}`));
@@ -65,6 +121,14 @@ export async function uploadBook(
   const { data: auth, error: authError } = await supabase.auth.getUser();
   if (authError || !auth.user) throw new Error("Faça login para enviar livros.");
 
+  // Avisa já, em português, em vez de gastar a leitura do PDF e ser recusado no envio.
+  if (input.file.size > MAX_UPLOAD_BYTES) {
+    const mb = Math.round(input.file.size / 1024 / 1024);
+    throw new Error(
+      `Este arquivo tem ${mb} MB e o limite é ${MAX_UPLOAD_BYTES / 1024 / 1024} MB. Reduza o PDF e tente de novo.`,
+    );
+  }
+
   // 1. Extração local: falha rápido, antes de gastar upload.
   onStage?.("extracting");
   const extracted = await extractPdfText(input.file, onExtractProgress);
@@ -77,11 +141,11 @@ export async function uploadBook(
   const bucket = supabase.storage.from(BOOKS_BUCKET);
 
   const uploads = [
-    bucket.upload(paths.pdf, input.file, { contentType: "application/pdf" }),
+    uploadWithRetry(bucket, paths.pdf, input.file, { contentType: "application/pdf" }),
     extracted.hasTextLayer
-      ? bucket.upload(paths.content, new Blob([extracted.text], { type: "text/plain" }), CONTENT_UPLOAD)
+      ? uploadWithRetry(bucket, paths.content, new Blob([extracted.text], { type: "text/plain" }), CONTENT_UPLOAD)
       : null,
-    cover ? bucket.upload(paths.cover, cover, { contentType: cover.type || "image/webp" }) : null,
+    cover ? uploadWithRetry(bucket, paths.cover, cover, { contentType: cover.type || "image/webp" }) : null,
   ];
   const results = await Promise.all(uploads);
   const failed = results.find((r) => r?.error);
@@ -95,10 +159,10 @@ export async function uploadBook(
       imageError = err instanceof Error ? err.message : "erro";
     }
   }
-  const uploadError = failed?.error?.message ?? imageError;
+  const uploadError = failed?.error ?? (imageError ? { message: imageError } : null);
   if (uploadError) {
     await bucket.remove([paths.pdf, paths.cover, paths.content, ...imagePaths]);
-    throw new Error(`Falha no upload: ${uploadError}`);
+    throw new Error(friendlyUploadError(uploadError));
   }
 
   const categories = normalizeCategories(input.categories ?? []);
