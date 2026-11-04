@@ -116,6 +116,18 @@ export function usePagination({ initialFraction, layoutKey, enabled }: UsePagina
     [pageCount],
   );
 
+  /** Página em que o elemento do texto começa (para seguir o áudio ou retomar dele). */
+  const pageOf = useCallback(
+    (el: Element) => {
+      const content = contentRef.current;
+      if (!content || width === 0) return 0;
+      const offset = el.getBoundingClientRect().left - content.getBoundingClientRect().left;
+      const column = Math.max(0, Math.floor((offset - padding) / (width / columns) + 0.01));
+      return clamp(Math.floor(column / columns), 0, pageCount - 1);
+    },
+    [width, columns, padding, pageCount],
+  );
+
   const trackStyle: CSSProperties = { width: width ? pageCount * width : undefined };
 
   const contentStyle: CSSProperties = {
@@ -136,6 +148,7 @@ export function usePagination({ initialFraction, layoutKey, enabled }: UsePagina
     page,
     pageCount,
     goTo,
+    pageOf,
     next: () => goTo(page + 1),
     prev: () => goTo(page - 1),
     /** Fração lida até o fim da página atual (0–1). */

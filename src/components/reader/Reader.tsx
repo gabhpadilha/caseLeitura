@@ -2,16 +2,19 @@
 
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import Link from "next/link";
-import { ChevronLeft, Loader2, X } from "lucide-react";
+import { ChevronLeft, Headphones, Loader2, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { buildSpeechChunks, type SpeechChunk } from "@/lib/reader/speech";
 import { parseBlocks, type TextBlock } from "@/lib/reader/blocks";
 import { HEADING_CLASSES, readerTextClasses, THEME_CLASSES } from "@/lib/reader/styles";
 import { progressPatch, saveProgress, sendProgressOnExit } from "@/lib/books/progress";
 import type { Book, BookUpdate } from "@/types/book";
 import { settingsToRow, type ReaderSettings } from "@/types/reader";
+import { ReaderAudioPlayer } from "./ReaderAudioPlayer";
 import { ReaderSettingsPanel } from "./ReaderSettingsPanel";
 import { ReaderToolbar } from "./ReaderToolbar";
 import { usePagination } from "./use-pagination";
+import { useSpeech } from "./use-speech";
 
 interface ReaderProps {
   book: Book;
@@ -71,6 +74,7 @@ export function Reader({ book, contentUrl, imageUrls, initialSettings }: ReaderP
     page,
     pageCount,
     goTo,
+    pageOf,
     next,
     prev,
     fraction,
@@ -187,6 +191,84 @@ export function Reader({ book, contentUrl, imageUrls, initialSettings }: ReaderP
     };
   }, [book.id]);
 
+  // ---- Audiolivro ----------------------------------------------------------
+  const [playerOpen, setPlayerOpen] = useState(false);
+  const chunks = useMemo(() => (ready ? buildSpeechChunks(content.blocks) : []), [ready, content]);
+  const audioPage = useRef<number | null>(null); // página do trecho anterior
+  const pageRef = useRef(page);
+  useEffect(() => {
+    pageRef.current = page;
+  });
+  const highlighted = useRef<Element | null>(null);
+
+  const blockElement = (block: number) =>
+    contentRef.current?.querySelector(`[data-block="${block}"]`) ?? null;
+
+  const clearHighlight = () => {
+    highlighted.current?.removeAttribute("data-reading");
+    highlighted.current = null;
+  };
+
+  // Destaca o parágrafo lido e vira a página até ele — mas só se o leitor ainda
+  // está olhando o trecho anterior; se foi para outra página, o áudio não o puxa de volta.
+  const onChunk = (chunk: SpeechChunk) => {
+    const el = blockElement(chunk.block);
+    if (el !== highlighted.current) {
+      clearHighlight();
+      el?.setAttribute("data-reading", "");
+      highlighted.current = el;
+    }
+    if (!el) return;
+    const target = pageOf(el);
+    const previous = audioPage.current;
+    audioPage.current = target;
+    if (target !== pageRef.current && (previous === null || previous === pageRef.current)) {
+      turnedPage.current = true; // o progresso salvo acompanha o áudio
+      goTo(target);
+    }
+  };
+
+  const speech = useSpeech({ chunks, onChunk });
+
+  useEffect(() => {
+    if (speech.status === "idle") clearHighlight();
+  }, [speech.status]);
+
+  // Primeiro trecho a partir da página atual (os blocos estão em ordem: busca binária).
+  const firstChunkOnPage = () => {
+    let lo = 0;
+    let hi = chunks.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      const el = blockElement(chunks[mid].block);
+      if (el && pageOf(el) >= pageRef.current) hi = mid;
+      else lo = mid + 1;
+    }
+    return Math.min(lo, chunks.length - 1);
+  };
+
+  const startAudio = (from: number = firstChunkOnPage()) => {
+    audioPage.current = null;
+    speech.play(from);
+  };
+
+  const togglePlayPause = () => {
+    if (speech.status === "playing") speech.pause();
+    else if (speech.status === "paused") speech.resume();
+    else startAudio();
+  };
+
+  const toggleAudio = () => {
+    if (playerOpen) {
+      speech.stop();
+      setPlayerOpen(false);
+    } else {
+      setPlayerOpen(true);
+      setPanelOpen(false);
+      startAudio();
+    }
+  };
+
   const turn = (direction: 1 | -1, { immersive = true } = {}) => {
     turnedPage.current = true;
     if (direction === 1) next();
@@ -209,7 +291,15 @@ export function Reader({ book, contentUrl, imageUrls, initialSettings }: ReaderP
   });
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        e.target instanceof HTMLSelectElement
+      ) {
+        return;
+      }
+      // Espaço num botão (ex.: tocar/pausar o áudio) aciona o botão, não vira a página.
+      if (e.key === " " && e.target instanceof HTMLButtonElement) return;
       if (e.key === "Escape") {
         setZoomed(null);
         return setPanelOpen(false);
@@ -264,7 +354,16 @@ export function Reader({ book, contentUrl, imageUrls, initialSettings }: ReaderP
     const x = (e.clientX - rect.left) / rect.width;
     if (x < EDGE_ZONE) turn(-1);
     else if (x > 1 - EDGE_ZONE) turn(1);
-    else setChromeVisible((v) => !v);
+    else {
+      // Com o áudio ativo e o player à vista, tocar num parágrafo continua dali.
+      const paragraph = e.target instanceof Element ? e.target.closest("[data-block]") : null;
+      if (speech.status !== "idle" && chromeVisible && paragraph) {
+        const block = Number(paragraph.getAttribute("data-block"));
+        const from = chunks.findIndex((c) => c.block === block);
+        if (from >= 0) return startAudio(from);
+      }
+      setChromeVisible((v) => !v);
+    }
   };
 
   // O texto não muda entre renders; memoizar evita refazer milhares de blocos.
@@ -272,7 +371,13 @@ export function Reader({ book, contentUrl, imageUrls, initialSettings }: ReaderP
   const textNodes = useMemo(
     () =>
       blocks?.map((block, i) => {
-        if (block.kind === "paragraph") return <p key={i}>{block.text}</p>;
+        if (block.kind === "paragraph") {
+          return (
+            <p key={i} data-block={i}>
+              {block.text}
+            </p>
+          );
+        }
         if (block.kind === "image") {
           const src = imageUrls[block.file];
           if (!src) return null;
@@ -306,7 +411,7 @@ export function Reader({ book, contentUrl, imageUrls, initialSettings }: ReaderP
         }
         const Heading = HEADING_TAG[block.level];
         return (
-          <Heading key={i} className={HEADING_CLASSES[block.level]}>
+          <Heading key={i} data-block={i} className={HEADING_CLASSES[block.level]}>
             {block.text}
           </Heading>
         );
@@ -340,9 +445,26 @@ export function Reader({ book, contentUrl, imageUrls, initialSettings }: ReaderP
         </p>
         {/* No celular a página já aparece na barra de baixo; aqui ela quebraria em
             várias linhas e a barra cresceria por cima do texto. */}
-        <p className={`hidden justify-self-end text-sm whitespace-nowrap tabular-nums sm:block ${theme.muted}`}>
-          {ready && `pág. ${page + 1} de ${pageCount}`}
-        </p>
+        <div className="flex items-center gap-3 justify-self-end">
+          <p className={`hidden text-sm whitespace-nowrap tabular-nums sm:block ${theme.muted}`}>
+            {ready && `pág. ${page + 1} de ${pageCount}`}
+          </p>
+          {speech.supported && (
+            <button
+              type="button"
+              onClick={toggleAudio}
+              disabled={!ready || chunks.length === 0}
+              aria-pressed={playerOpen}
+              aria-label="Ouvir em voz alta"
+              className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-30 ${
+                playerOpen ? "bg-coral text-white" : theme.chromeHover
+              }`}
+            >
+              <Headphones className="size-4" aria-hidden />
+              Ouvir
+            </button>
+          )}
+        </div>
       </header>
 
       <main
@@ -371,7 +493,7 @@ export function Reader({ book, contentUrl, imageUrls, initialSettings }: ReaderP
                 ref={contentRef}
                 lang="pt-BR"
                 style={contentStyle}
-                className={`h-full w-full [overflow-wrap:anywhere] [&>p]:indent-[1.5em] ${readerTextClasses(settings)}`}
+                className={`h-full w-full [overflow-wrap:anywhere] [&>p]:indent-[1.5em] [&_[data-reading]]:rounded-sm [&_[data-reading]]:bg-coral/20 [&_[data-reading]]:[box-decoration-break:clone] ${readerTextClasses(settings)}`}
               >
                 {textNodes}
                 <div ref={endRef} aria-hidden />
@@ -395,6 +517,21 @@ export function Reader({ book, contentUrl, imageUrls, initialSettings }: ReaderP
       <div
         className={`absolute inset-x-0 bottom-[max(1rem,env(safe-area-inset-bottom))] z-20 flex flex-col items-center gap-3 px-4 transition-opacity duration-200 ${fade}`}
       >
+        {playerOpen && (
+          <ReaderAudioPlayer
+            theme={theme}
+            status={speech.status}
+            error={speech.error}
+            voices={speech.voices}
+            voiceUri={speech.voice?.voiceURI ?? null}
+            rate={speech.rate}
+            onPlayPause={togglePlayPause}
+            onStop={speech.stop}
+            onClose={toggleAudio}
+            onRate={speech.setRate}
+            onVoice={speech.setVoice}
+          />
+        )}
         {panelOpen && (
           <ReaderSettingsPanel settings={settings} onChange={setSettings} theme={theme} />
         )}
