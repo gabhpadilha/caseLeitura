@@ -5,8 +5,10 @@ import { ChevronLeft, Eye } from "lucide-react";
 import { Avatar } from "@/components/community/Avatar";
 import { MemberShelf } from "@/components/community/MemberShelf";
 import { ReviewPost } from "@/components/community/ReviewPost";
+import { LibraryFilters } from "@/components/gallery/LibraryFilters";
+import { findCategory } from "@/lib/books/categories";
+import { applyGalleryFilters, galleryHref, parseGalleryFilters } from "@/lib/books/gallery";
 import { getMemberShelf } from "@/lib/books/queries";
-import { SHELVES } from "@/types/book";
 
 export default function LeitorPage({ params, searchParams }: PageProps<"/leitores/[userId]">) {
   return (
@@ -17,21 +19,17 @@ export default function LeitorPage({ params, searchParams }: PageProps<"/leitore
 }
 
 async function Leitor({ params, searchParams }: PageProps<"/leitores/[userId]">) {
-  const [{ userId }, { estado }] = await Promise.all([params, searchParams]);
+  const [{ userId }, query] = await Promise.all([params, searchParams]);
   const member = await getMemberShelf(userId);
   if (!member) notFound();
 
-  const shelf = SHELVES.find((s) => s.slug === estado) ?? null;
-  const books = shelf ? member.books.filter((b) => b.status === shelf.status) : member.books;
+  // Mesmos filtros da página Livros (estado, categoria, ordem e busca na URL).
+  // "Recentes" é a ordem de chegada na estante, como vem do banco.
+  const filters = parseGalleryFilters(query, `/leitores/${member.id}`);
+  const view = applyGalleryFilters(member.books, filters, (books) => books);
+  const filtered = Boolean(filters.query || filters.category);
+  const category = findCategory(filters.category)?.label;
   const reviews = member.books.filter((b) => b.review);
-  const tabs: { slug: string | null; label: string; count: number }[] = [
-    { slug: null, label: "Todos", count: member.books.length },
-    ...SHELVES.map((s) => ({
-      slug: s.slug,
-      label: s.short,
-      count: member.books.filter((b) => b.status === s.status).length,
-    })),
-  ];
 
   return (
     <div className="space-y-10">
@@ -57,31 +55,40 @@ async function Leitor({ params, searchParams }: PageProps<"/leitores/[userId]">)
         </p>
       )}
 
-      <section aria-labelledby="estante" className="space-y-6">
-        <h2 id="estante" className="sr-only">
-          Estante
-        </h2>
-        <nav aria-label="Filtrar por estado" className="-mx-5 flex gap-2 overflow-x-auto px-5 [scrollbar-width:none] sm:mx-0 sm:px-0">
-          {tabs.map((tab) => {
-            const active = (shelf?.slug ?? null) === tab.slug;
-            return (
-              <Link
-                key={tab.label}
-                href={tab.slug ? `/leitores/${member.id}?estado=${tab.slug}` : `/leitores/${member.id}`}
-                aria-current={active ? "page" : undefined}
-                className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
-                  active ? "bg-ink text-paper" : "bg-paper-soft ring-1 ring-ink/10 hover:ring-ink/30"
-                }`}
-              >
-                {tab.label} <span className={active ? "text-paper/60" : "text-graphite"}>{tab.count}</span>
-              </Link>
-            );
-          })}
-        </nav>
-        {books.length > 0 ? (
-          <MemberShelf books={books} />
-        ) : (
+      <section aria-label="Estante" className="space-y-6">
+        {member.books.length === 0 ? (
           <p className="rounded-[2rem] bg-paper-soft px-8 py-12 text-center text-graphite">Nada por aqui ainda.</p>
+        ) : (
+          <>
+            <LibraryFilters filters={filters} view={view} title="Estante" member />
+            {filtered && (
+              <p className="text-sm text-graphite">
+                {view.books.length} {view.books.length === 1 ? "livro" : "livros"}
+                {category && (
+                  <>
+                    {" "}
+                    em <b className="text-ink">{category}</b>
+                  </>
+                )}
+                {filters.query && <> para “{filters.query}”</>}
+              </p>
+            )}
+            {view.books.length > 0 ? (
+              <MemberShelf books={view.books} />
+            ) : (
+              <div className="rounded-[2rem] bg-paper-soft px-8 py-12 text-center">
+                <p className="text-graphite">{filtered ? "Nenhum livro com esses filtros." : "Nada por aqui ainda."}</p>
+                {filtered && (
+                  <Link
+                    href={galleryHref(filters, { q: null, categoria: null })}
+                    className="mt-5 inline-flex rounded-full px-5 py-2.5 text-sm font-medium ring-1 ring-ink/30 hover:bg-white"
+                  >
+                    Limpar busca e categoria
+                  </Link>
+                )}
+              </div>
+            )}
+          </>
         )}
       </section>
 

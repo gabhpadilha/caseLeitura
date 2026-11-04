@@ -6,6 +6,7 @@ import {
   SORTS,
   galleryHref,
   type GalleryFilters,
+  type GalleryItem,
   type GalleryView,
 } from "@/lib/books/gallery";
 import { SHELVES } from "@/types/book";
@@ -13,14 +14,19 @@ import { FilterSheet } from "./FilterSheet";
 
 interface LibraryFiltersProps {
   filters: GalleryFilters;
-  view: GalleryView;
+  view: GalleryView<GalleryItem>;
+  /** Título ao lado da busca ("Meus livros"; na estante de outro leitor, "Estante"). */
+  title?: string;
+  /** Galeria de outro leitor: título em h2 e sem a dica de editar categorias. */
+  member?: boolean;
 }
 
 const chipRow =
   "-mx-5 flex gap-2 overflow-x-auto px-5 [scrollbar-width:none] sm:mx-0 sm:px-0";
 
 /** Busca + abas de estado + categorias + ordem. Tudo é link: funciona sem JS e no "voltar". */
-export function LibraryFilters({ filters, view }: LibraryFiltersProps) {
+export function LibraryFilters({ filters, view, title = "Meus livros", member = false }: LibraryFiltersProps) {
+  const Heading = member ? "h2" : "h1";
   const tabs: Tab[] = [
     { slug: null, label: "Todos", count: view.shelfCounts.todos },
     ...SHELVES.map((s) => ({
@@ -37,12 +43,12 @@ export function LibraryFilters({ filters, view }: LibraryFiltersProps) {
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-end justify-between gap-4">
-        <h1 className="font-display text-4xl font-medium sm:text-5xl">
-          Meus livros
-        </h1>
+        <Heading className="font-display text-4xl font-medium sm:text-5xl">
+          {title}
+        </Heading>
         <div className="flex w-full items-center gap-2 sm:w-auto">
           <Form
-            action="/"
+            action={filters.basePath}
             role="search"
             className="relative min-w-0 flex-1 sm:w-80"
           >
@@ -70,7 +76,7 @@ export function LibraryFilters({ filters, view }: LibraryFiltersProps) {
             )}
           </Form>
           {/* No diário de lidos a ordem é a do término (agrupado por ano). */}
-          {filters.shelf?.slug !== "lidos" && (
+          {(member || filters.shelf?.slug !== "lidos") && (
             <div className="hidden sm:block">
               <SortMenu filters={filters} />
             </div>
@@ -78,7 +84,7 @@ export function LibraryFilters({ filters, view }: LibraryFiltersProps) {
         </div>
       </div>
 
-      <MobileFilters filters={filters} view={view} tabs={tabs} />
+      <MobileFilters filters={filters} view={view} tabs={tabs} member={member} />
 
       <nav aria-label="Filtrar por estado" className={`${chipRow} hidden pt-3 sm:flex`}>
         {tabs.map((tab) => {
@@ -146,11 +152,11 @@ function OptionMark({ on }: { on: boolean }) {
 }
 
 /** Celular: três botões numa linha (estado, categoria, ordem), cada um abre uma folha de opções. */
-function MobileFilters({ filters, view, tabs }: LibraryFiltersProps & { tabs: Tab[] }) {
+function MobileFilters({ filters, view, tabs, member }: LibraryFiltersProps & { tabs: Tab[] }) {
   const shelf = tabs.find((t) => t.slug === (filters.shelf?.slug ?? null))!;
   const category = findCategory(filters.category);
   const sort = SORTS.find((s) => s.slug === filters.sort)!;
-  const showSort = filters.shelf?.slug !== "lidos";
+  const showSort = member || filters.shelf?.slug !== "lidos";
 
   return (
     <div className="flex gap-2 pt-1 sm:hidden">
@@ -185,7 +191,9 @@ function MobileFilters({ filters, view, tabs }: LibraryFiltersProps & { tabs: Ta
         ))}
         {view.categoryCounts.length === 0 && (
           <p className="px-4 py-3 text-sm text-graphite">
-            Nenhum livro com categoria ainda. Escolha as categorias na página de cada livro.
+            {member
+              ? "Nenhum livro com categoria nesta estante."
+              : "Nenhum livro com categoria ainda. Escolha as categorias na página de cada livro."}
           </p>
         )}
       </FilterSheet>
