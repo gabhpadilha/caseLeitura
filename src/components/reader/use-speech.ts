@@ -167,5 +167,32 @@ export function useSpeech({ chunks, onChunk }: UseSpeechOptions) {
     };
   }, [chunks, stop]);
 
+  // Mantém a tela acesa enquanto o áudio toca (Screen Wake Lock API).
+  // O navegador solta o bloqueio ao esconder a aba; reativamos ao voltar.
+  useEffect(() => {
+    if (status !== "playing" || !("wakeLock" in navigator)) return;
+    let sentinel: WakeLockSentinel | null = null;
+    let active = true;
+    const acquire = async () => {
+      try {
+        const lock = await navigator.wakeLock.request("screen");
+        if (active) sentinel = lock;
+        else void lock.release();
+      } catch {
+        // Sem permissão ou bateria baixa: o áudio segue, só a tela pode apagar.
+      }
+    };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void acquire();
+    };
+    void acquire();
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      active = false;
+      document.removeEventListener("visibilitychange", onVisible);
+      void sentinel?.release();
+    };
+  }, [status]);
+
   return { supported, status, error, voices, voice, rate, play, pause, resume, stop, setRate, setVoice };
 }
