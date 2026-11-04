@@ -1,7 +1,8 @@
 // Só roda no browser (usa worker e canvas). Importe apenas de Client Components.
 import type { PDFDocumentProxy, PDFPageProxy } from "pdfjs-dist";
 import type { TextItem, TextMarkedContent } from "pdfjs-dist/types/src/display/api";
-import { cleanExtractedText, countWords, normalizeChars, stripRunningHeaders } from "./clean-text";
+import { cleanExtractedText, countWords, looksGarbled, normalizeChars, stripRunningHeaders } from "./clean-text";
+import { separateFigureText } from "./figures";
 import {
   cropIllustrations,
   findPageImages,
@@ -10,7 +11,7 @@ import {
   type Illustration,
 } from "./images";
 import { createOcr } from "./ocr";
-import { imageMarker, markStructure, visualEdges, type RawLine } from "./structure";
+import { bodyFontSize, imageMarker, markStructure, visualEdges, type RawLine } from "./structure";
 
 export interface ExtractProgress {
   page: number;
@@ -68,6 +69,21 @@ export function loadPdfjs() {
   return pdfjsPromise;
 }
 
+/**
+ * Parâmetros do getDocument. As CMaps e as fontes padrão (copiadas para
+ * public/pdfjs/ no postinstall) são necessárias para decodificar o texto de
+ * fontes CID e de fontes padrão não embutidas; sem elas saem caracteres
+ * trocados ou faltando.
+ */
+export function documentParams(data: Uint8Array) {
+  return {
+    data,
+    cMapUrl: "/pdfjs/cmaps/",
+    cMapPacked: true,
+    standardFontDataUrl: "/pdfjs/standard_fonts/",
+  };
+}
+
 function isTextItem(item: TextItem | TextMarkedContent): item is TextItem {
   return "str" in item;
 }
@@ -87,15 +103,19 @@ async function pageToLines(page: PDFPageProxy): Promise<RawLine[]> {
   let lineY: number | null = null;
   let lineHeight = 0;
   let prevEndX: number | null = null;
+  let x0 = Infinity;
+  let x1 = -Infinity;
 
   const flush = () => {
     if (current.trim()) {
-      lines.push({ text: current, size: currentSize, gapBefore, y: lineY ?? 0 });
+      lines.push({ text: current, size: currentSize, gapBefore, y: lineY ?? 0, x0, x1 });
       gapBefore = false;
     }
     current = "";
     currentSize = 0;
     prevEndX = null;
+    x0 = Infinity;
+    x1 = -Infinity;
   };
 
   for (const item of items) {
@@ -119,7 +139,11 @@ async function pageToLines(page: PDFPageProxy): Promise<RawLine[]> {
         !current.endsWith(" ") &&
         !item.str.startsWith(" ");
       current += (needsSpace ? " " : "") + item.str;
-      if (item.str.trim()) currentSize = Math.max(currentSize, height);
+      if (item.str.trim()) {
+        currentSize = Math.max(currentSize, height);
+        x0 = Math.min(x0, x);
+        x1 = Math.max(x1, x + item.width);
+      }
       prevEndX = x + item.width;
       lineY = y;
       lineHeight = height;
@@ -158,7 +182,7 @@ export async function extractPdfText(
   const pdfjs = await loadPdfjs();
   // getDocument transfere (detacha) o buffer, então usamos uma cópia própria.
   const data = new Uint8Array(await file.arrayBuffer());
-  const doc = await pdfjs.getDocument({ data }).promise;
+  const doc = await pdfjs.getDocument(documentParams(data)).promise;
   const OPS = pdfjs.OPS as unknown as Record<string, number>;
 
   // O Tesseract só é baixado se aparecer alguma página escaneada.
@@ -176,7 +200,20 @@ export async function extractPdfText(
       const chars = lines.reduce((sum, l) => sum + l.text.replace(/\s/g, "").length, 0);
       let pictures = illustrationCandidates(page, images);
 
-      if (chars < SCANNED_MAX_CHARS && largestImageArea(page, images) >= SCANNED_MIN_IMAGE_AREA) {
+      // Fonte sem tabela de caracteres: o texto sai em símbolos. O OCR lê o que está desenhado.
+      const garbled = looksGarbled(lines.map((l) => l.text).join(" "));
+      if (garbled) {
+        if (!ocr) {
+          onProgress?.({ page: n, totalPages: doc.numPages, phase: "ocr-setup" });
+          ocr = await createOcr();
+        }
+        onProgress?.({ page: n, totalPages: doc.numPages, phase: "ocr" });
+        const result = await ocr.recognize(page);
+        if (result.words >= OCR_MIN_WORDS) {
+          lines = result.lines;
+          ocrPages++;
+        }
+      } else if (chars < SCANNED_MAX_CHARS && largestImageArea(page, images) >= SCANNED_MIN_IMAGE_AREA) {
         if (!ocr) {
           onProgress?.({ page: n, totalPages: doc.numPages, phase: "ocr-setup" });
           ocr = await createOcr();
@@ -204,6 +241,17 @@ export async function extractPdfText(
     // pôr o cabeçalho depois do corpo). As ilustrações entram depois, para não
     // serem confundidas com cabeçalhos. O tamanho do corpo do texto, usado para
     // achar os títulos, só é conhecido depois de ler o livro inteiro.
+    // Antes disso, o texto de cada ilustração (rótulos dentro dela e a legenda)
+    // sai das linhas da página: a legenda vai junto da imagem.
+    const bodySize = bodyFontSize(pages);
+    const captions = illustrations.map((list, p) =>
+      list.map((picture) => {
+        const { lines, caption } = separateFigureText(pages[p], picture.pdf, bodySize);
+        pages[p] = lines;
+        return caption;
+      }),
+    );
+
     const images: ExtractedImage[] = [];
     const body = stripRunningHeaders(pages, (l) => normalizeChars(l.text), visualEdges).map(
       (lines, p) =>
@@ -211,7 +259,7 @@ export async function extractPdfText(
           const ext = picture.blob.type === "image/jpeg" ? "jpg" : "webp";
           const name = `p${p + 1}-${i + 1}.${ext}`;
           images.push({ name, blob: picture.blob });
-          const text = imageMarker(name, picture.width, picture.height);
+          const text = imageMarker(name, picture.width, picture.height, captions[p][i] ?? undefined);
           return insertByPosition(acc, { text, size: 0, gapBefore: true, y: picture.top, image: true });
         }, lines),
     );
@@ -238,8 +286,7 @@ export async function extractPdfText(
 /** Renderiza a 1ª página como capa (WebP) quando o usuário não envia uma. */
 export async function renderCover(file: Blob, width = 480): Promise<Blob | null> {
   const pdfjs = await loadPdfjs();
-  const doc = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) })
-    .promise;
+  const doc = await pdfjs.getDocument(documentParams(new Uint8Array(await file.arrayBuffer()))).promise;
 
   try {
     const page = await doc.getPage(1);

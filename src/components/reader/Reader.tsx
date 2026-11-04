@@ -34,8 +34,17 @@ const HEADING_TAG = { 1: "h2", 2: "h3", 3: "h4" } as const;
 const EDGE_ZONE = 0.3;
 const SWIPE_MIN_PX = 40;
 
-/** Altura livre da página (descontadas a barra de cima e a de baixo) para limitar as ilustrações. */
-const PAGE_HEIGHT = "(100dvh - 11rem)";
+/**
+ * Altura máxima de uma ilustração. 100cqh é a altura real da página (a coluna
+ * do texto é um container); descontadas as margens da figura e a legenda, a
+ * figura sempre cabe numa página — se passasse, a coluna estouraria e sobraria
+ * uma página em branco. O teto de 70% deixa a figura caber depois de algumas
+ * linhas de texto, em vez de pular para a página seguinte.
+ */
+function figureMaxHeight(caption: string | null) {
+  const reserve = caption ? `2em + ${Math.min(6, 1.5 + Math.ceil(caption.length / 45) * 1.2).toFixed(1)}em` : "2em";
+  return `min(100cqh - (${reserve}), 70cqh)`;
+}
 
 export function Reader({ book, contentUrl, imageUrls, initialSettings }: ReaderProps) {
   const supabase = useMemo(() => createClient(), []);
@@ -284,9 +293,14 @@ export function Reader({ book, contentUrl, imageUrls, initialSettings }: ReaderP
                 className="mx-auto h-auto cursor-zoom-in rounded-sm"
                 style={{
                   aspectRatio: `${block.width} / ${block.height}`,
-                  width: `min(100%, ${block.width}px, calc(${PAGE_HEIGHT} * ${ratio.toFixed(4)}))`,
+                  width: `min(100%, ${block.width}px, calc((${figureMaxHeight(block.caption)}) * ${ratio.toFixed(4)}))`,
                 }}
               />
+              {block.caption && (
+                <figcaption className="mx-auto mt-[0.6em] max-w-[34em] text-center text-[0.8em] leading-snug italic opacity-75 [text-indent:0]">
+                  {block.caption}
+                </figcaption>
+              )}
             </figure>
           );
         }
@@ -348,7 +362,8 @@ export function Reader({ book, contentUrl, imageUrls, initialSettings }: ReaderP
           </p>
         )}
         {ready && (
-          <div ref={viewportRef} className="mx-auto h-full max-w-[1200px] overflow-hidden">
+          // container-type: size → as ilustrações medem a página em cqh.
+          <div ref={viewportRef} className="mx-auto h-full max-w-[1200px] overflow-hidden [container-type:size]">
             <div style={trackStyle} className="h-full">
               {/* overflow-wrap: anywhere quebra URLs e palavras sem espaço que
                   não cabem na coluna, em vez de vazarem sobre a vizinha. */}

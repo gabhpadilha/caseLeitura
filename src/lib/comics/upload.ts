@@ -2,7 +2,7 @@
 // PDF → cada página renderizada em WebP/JPEG; CBZ → as imagens do zip, sem recompressão.
 import { strFromU8, unzip, type Unzipped } from "fflate";
 import { createClient } from "@/lib/supabase/client";
-import { loadPdfjs, renderCover } from "@/lib/pdf/extract";
+import { documentParams, loadPdfjs, renderCover } from "@/lib/pdf/extract";
 import { encodeImage } from "@/lib/pdf/images";
 import { BOOKS_BUCKET, bookStoragePaths, type Book } from "@/types/book";
 
@@ -103,7 +103,7 @@ function usefulTitle(title: string | null): string | null {
 /** Páginas do PDF renderizadas uma a uma (só uma página na memória por vez). */
 async function pdfPages(file: File) {
   const pdfjs = await loadPdfjs();
-  const doc = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
+  const doc = await pdfjs.getDocument(documentParams(new Uint8Array(await file.arrayBuffer()))).promise;
   let title: string | null = null;
   let author: string | null = null;
   try {

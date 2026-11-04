@@ -9,10 +9,19 @@ export interface Box {
   h: number;
 }
 
+/** Retângulo no espaço do PDF (y cresce para cima), comparável a `RawLine.y`/`x0`/`x1`. */
+export interface PdfRect {
+  left: number;
+  right: number;
+  bottom: number;
+  top: number;
+}
+
 export interface PageImage {
   box: Box;
   /** Topo da imagem no espaço do PDF (y cresce para cima), como `RawLine.y`. */
   top: number;
+  pdf: PdfRect;
 }
 
 export interface Illustration {
@@ -21,6 +30,7 @@ export interface Illustration {
   width: number;
   height: number;
   top: number;
+  pdf: PdfRect;
 }
 
 type Matrix = [number, number, number, number, number, number];
@@ -69,9 +79,17 @@ function mergeTouching(images: PageImage[], margin: number): PageImage[] {
         if (!overlaps(a, b, margin)) continue;
         const x = Math.min(a.x, b.x);
         const y = Math.min(a.y, b.y);
+        const p = merged[i].pdf;
+        const q = merged[j].pdf;
         merged[i] = {
           box: { x, y, w: Math.max(a.x + a.w, b.x + b.w) - x, h: Math.max(a.y + a.h, b.y + b.h) - y },
           top: Math.max(merged[i].top, merged[j].top),
+          pdf: {
+            left: Math.min(p.left, q.left),
+            right: Math.max(p.right, q.right),
+            bottom: Math.min(p.bottom, q.bottom),
+            top: Math.max(p.top, q.top),
+          },
         };
         merged.splice(j, 1);
         changed = true;
@@ -138,6 +156,7 @@ export async function findPageImages(
       images.push({
         box: { x: left, y: topPx, w: right - left, h: bottom - topPx },
         top: Math.max(...ys),
+        pdf: { left: Math.min(...xs), right: Math.max(...xs), bottom: Math.min(...ys), top: Math.max(...ys) },
       });
     }
   }
@@ -198,7 +217,7 @@ export async function cropIllustrations(
   await page.render({ canvas, viewport }).promise;
 
   const out: Illustration[] = [];
-  for (const { box, top } of images) {
+  for (const { box, top, pdf } of images) {
     const crop = document.createElement("canvas");
     crop.width = Math.max(1, Math.round(box.w * scale));
     crop.height = Math.max(1, Math.round(box.h * scale));
@@ -206,7 +225,7 @@ export async function cropIllustrations(
       .getContext("2d")
       ?.drawImage(canvas, box.x * scale, box.y * scale, crop.width, crop.height, 0, 0, crop.width, crop.height);
     const blob = await encodeImage(crop);
-    if (blob) out.push({ blob, width: crop.width, height: crop.height, top });
+    if (blob) out.push({ blob, width: crop.width, height: crop.height, top, pdf });
   }
   // Libera a memória do canvas grande já (o Safari demora a coletar).
   canvas.width = canvas.height = 0;

@@ -42,3 +42,6 @@ next-env.d.ts
 
 # exemplo de variáveis (sem segredos)
 !.env.example
+
+# CMaps e fontes do pdf.js (copiadas de node_modules no postinstall)
+/public/pdfjs

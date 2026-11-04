@@ -15,6 +15,9 @@ export interface RawLine {
   gapBefore: boolean;
   /** Posição vertical da linha na página (no PDF, y cresce para cima). */
   y: number;
+  /** Começo e fim horizontais da linha, no espaço do PDF (só no texto do PDF, não no OCR). */
+  x0?: number;
+  x1?: number;
   /** Linha que é uma ilustração: `text` é o marcador `![LxA](arquivo)`. */
   image?: boolean;
 }
@@ -30,11 +33,16 @@ export type HeadingLevel = 0 | 1 | 2 | 3;
 /** Prefixo de título no texto limpo (`# `, `## `, `### `). */
 export const HEADING_MARK = /^(#{1,3}) /;
 
-/** Marcador de ilustração no texto limpo: `![1200x800](p12-1.webp)` (dimensões em px). */
-export const IMAGE_MARK = /^!\[(\d+)x(\d+)\]\(([^()\s]+)\)$/;
+/**
+ * Marcador de ilustração no texto limpo: `![1200x800](p12-1.webp)` (dimensões
+ * em px), com a legenda opcional entre aspas: `![1200x800](p12-1.webp "Lênin em 1917")`.
+ */
+export const IMAGE_MARK = /^!\[(\d+)x(\d+)\]\(([^()\s"]+)(?: "([^"\n]*)")?\)$/;
 
-export function imageMarker(file: string, width: number, height: number): string {
-  return `![${width}x${height}](${file})`;
+export function imageMarker(file: string, width: number, height: number, caption?: string): string {
+  // Aspas retas fechariam a legenda antes da hora: viram tipográficas.
+  const text = caption?.replace(/"([^"]*)"/g, "“$1”").replace(/"/g, "”").replace(/\s+/g, " ").trim();
+  return `![${width}x${height}](${file}${text ? ` "${text}"` : ""})`;
 }
 
 /** Tamanho de fonte mais frequente, ponderado pela quantidade de caracteres. */

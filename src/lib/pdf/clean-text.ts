@@ -7,7 +7,7 @@
  * Saída: texto corrido, um bloco por parágrafo ou título, separados por "\n\n".
  *
  * Pipeline:
- *   1. normalizeChars      — ligaduras, soft hyphens, espaços exóticos
+ *   1. normalizeChars      — ligaduras, acentos soltos, glifos privados, espaços exóticos
  *   2. stripRunningHeaders — cabeçalhos/rodapés repetidos e números de página
  *   3. markParagraphs      — decide onde há quebra de parágrafo real
  *   4. joinLines (regex)   — junta linhas quebradas e desfaz hifenização
@@ -38,15 +38,134 @@ const DIALOGUE_START = /^[—–]\s*\S/u;
 const PAGE_NUMBER =
   /^[-–—\s]*(?:p(?:á|a)g(?:ina)?\.?|p\.|page)?\s*\d{1,4}(?:\s*(?:\/|de|of)\s*\d{1,5})?[-–—\s]*$/iu;
 
+/**
+ * Acentos "soltos": muitos PDFs (LaTeX, fontes antigas, alguns InDesign)
+ * desenham a letra e o acento como glifos separados, e o texto sai como
+ * "Revoluc¸˜ao". Aqui o acento de espaçamento vira o combinante equivalente.
+ * Só os caracteres de espaçamento próprios de acento (não ^ ~ ` do teclado).
+ */
+const SPACING_ACCENT: Record<string, string> = {
+  "´": "\u0301",
+  "ˆ": "\u0302",
+  "˜": "\u0303",
+  "¨": "\u0308",
+  "¸": "\u0327",
+  "˚": "\u030A",
+  "ˋ": "\u0300",
+};
+const ACCENT = "[´ˆ˜¨˚ˋ]";
+/** Letras que recebem acento em português (e o ñ dos nomes). */
+const ACCENTABLE = "[aeiouAEIOUnN]";
+
+/** Glifos privados com significado conhecido (ligaduras das fontes do Mac). */
+const PRIVATE_USE: Record<string, string> = { "\uF001": "fi", "\uF002": "fl" };
+
+/** O resultado é uma letra acentuada de verdade (um único caractere após o NFC). */
+function compose(letter: string, accent: string): string | null {
+  const composed = (letter + SPACING_ACCENT[accent]).normalize("NFC");
+  return composed.length === 1 ? composed : null;
+}
+
+const ACCENTABLE_RE = new RegExp(`^${ACCENTABLE}$`);
+const ACCENT_RE = new RegExp(`^${ACCENT}$`);
+
+/**
+ * Recompõe letras acentuadas que o PDF entregou em pedaços. O acento pode vir
+ * antes da letra ("˜ao", a ordem em que costuma ser desenhado) ou depois
+ * ("a˜o"). Entre duas letras acentuáveis, o til fica com o "ão/ãe/õe" e os
+ * outros casos seguem a ordem mais comum na própria linha.
+ */
+export function repairAccents(input: string): string {
+  // Cedilha: sempre depois do c ("c¸" → "ç"), às vezes com espaço.
+  const s = input.replace(/([cC]) ?¸/g, (_, c: string) => compose(c, "¸")!);
+  if (!/[´ˆ˜¨˚ˋ\u0300-\u036f]/.test(s)) return s;
+
+  const chars = [...s];
+  const isLetter = (i: number) => i >= 0 && i < chars.length && ACCENTABLE_RE.test(chars[i]);
+  // Ordem dominante na linha, pelos casos sem ambiguidade.
+  let before = 0;
+  let after = 0;
+  chars.forEach((ch, i) => {
+    if (!ACCENT_RE.test(ch)) return;
+    const next = isLetter(i + 1) || (chars[i + 1] === " " && isLetter(i + 2));
+    const prev = isLetter(i - 1);
+    if (next && !prev) before++;
+    if (prev && !next) after++;
+  });
+
+  let out = "";
+  for (let i = 0; i < chars.length; i++) {
+    const ch = chars[i];
+    if (!ACCENT_RE.test(ch)) {
+      out += ch;
+      continue;
+    }
+    const prevLetter = isLetter(i - 1) ? chars[i - 1] : null;
+    const nextIndex = isLetter(i + 1) ? i + 1 : chars[i + 1] === " " && isLetter(i + 2) ? i + 2 : -1;
+    const nextLetter = nextIndex >= 0 ? chars[nextIndex] : null;
+
+    let withPrev = prevLetter !== null && (nextLetter === null || after > before);
+    if (prevLetter && nextLetter && ch === "˜") {
+      withPrev = /^[aA][oOeE]$|^[oO][eE]$/.test(prevLetter + nextLetter);
+    }
+    if (withPrev && prevLetter) {
+      const composed = compose(prevLetter, ch);
+      if (composed) {
+        out = out.slice(0, -prevLetter.length) + composed;
+        continue;
+      }
+    }
+    if (nextLetter) {
+      const composed = compose(nextLetter, ch);
+      if (composed) {
+        // "Revoluç ˜ao": nenhuma palavra começa com ã/õ, então o espaço antes
+        // do til era só o vão entre os glifos.
+        if (ch === "˜" && out.endsWith(" ") && /\p{L} $/u.test(out)) out = out.slice(0, -1);
+        out += composed;
+        i = nextIndex;
+        continue;
+      }
+    }
+    out += ch;
+  }
+
+  // Combinante antes da letra (ordem invertida) vai para depois dela.
+  return out.replace(/(^|[^\p{L}])([\u0300-\u036f]+)(\p{L})/gu, "$1$3$2").normalize("NFC");
+}
+
 export function normalizeChars(s: string): string {
-  return s
+  return repairAccents(s)
     .replace(/[ﬀ-ﬆ]/g, (ch) => LIGATURES[ch] ?? ch)
+    .replace(/[\uF001\uF002]/g, (ch) => PRIVATE_USE[ch])
+    // Outros glifos privados e o caractere de substituição: sem tradução possível.
+    .replace(/[\uE000-\uF8FF\uFFFD]/g, "")
     .replace(/­/g, "") // soft hyphen
     .replace(/[  -   　]/g, " ") // espaços especiais
     .replace(/[​-‍﻿]/g, "") // zero-width
     .replace(/\p{Cc}/gu, (ch) => (ch === "\n" ? ch : " ")) // controles → espaço
     .replace(/[ \t]+/g, " ")
     .trim();
+}
+
+/**
+ * Texto de uma página que saiu ilegível: fonte sem tabela de caracteres
+ * (ToUnicode) faz o pdf.js devolver símbolos ou letras trocadas. Nesses casos
+ * a página vai para o OCR, que lê o que está desenhado.
+ */
+export function looksGarbled(text: string): boolean {
+  const chars = text.replace(/\s/g, "");
+  if (chars.length < 80) return false;
+  const odd = chars.match(/[^\p{L}\p{N}\p{P}\p{Sc}°ºª§+=<>|~^`´¨]/gu)?.length ?? 0;
+  const privateOrBroken = chars.match(/[\uE000-\uF8FF\uFFFD]/gu)?.length ?? 0;
+  // Vogais só entre as letras latinas: trechos em russo ou grego (epígrafes,
+  // citações) são legítimos e não podem mandar a página para o OCR em português.
+  const letters = chars.match(/\p{Script=Latin}/gu) ?? [];
+  const vowels = letters.filter((l) => /[aeiouyáàâãéêíóôõúü]/iu.test(l)).length;
+  return (
+    privateOrBroken / chars.length > 0.03 ||
+    odd / chars.length > 0.15 ||
+    (letters.length >= 80 && vowels / letters.length < 0.25)
+  );
 }
 
 function headerKey(line: string): string {

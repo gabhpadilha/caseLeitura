@@ -61,8 +61,11 @@ src/
 O texto é extraído **no navegador**, antes do upload:
 
 1. `extract.ts` lê os fragmentos posicionados do pdf.js, remonta as linhas e marca
-   espaçamentos verticais grandes como possíveis parágrafos.
-2. `clean-text.ts` normaliza caracteres (ligaduras, soft hyphens), remove
+   espaçamentos verticais grandes como possíveis parágrafos. O pdf.js recebe as CMaps e
+   as fontes padrão (`public/pdfjs/`, copiadas de `node_modules` no `postinstall`):
+   sem elas, fontes CID e fontes não embutidas saem com caracteres trocados.
+2. `clean-text.ts` normaliza caracteres (ligaduras, soft hyphens, acentos desenhados
+   como glifos separados — `Revoluc¸˜ao` → `Revolução` —, glifos privados), remove
    cabeçalhos/rodapés repetidos e números de página, decide onde há parágrafo real
    e, via regex, desfaz hifenização (`pala-\nvra` → `palavra`, mas `bem-\n-vindo` →
    `bem-vindo`) e quebras de linha visuais.
@@ -70,10 +73,16 @@ O texto é extraído **no navegador**, antes do upload:
    descarta ornamentos pequenos e fundos de página inteira e recorta as ilustrações
    em WebP (JPEG no Safari). No texto, cada uma vira um bloco `![LxA](p12-1.webp)`
    na altura em que aparece; uma figura no meio de uma frase espera o fim do parágrafo.
+   `figures.ts` tira do texto os rótulos desenhados dentro da figura (já estão no
+   recorte) e junta a legenda — corpo menor ou "Figura 3…", logo abaixo ou acima — no
+   marcador: `![LxA](p12-1.webp "legenda")`. No leitor a figura nunca passa da altura
+   da página (mede em `cqh`), então não sobra página em branco.
 4. `ocr.ts`: página sem texto e com uma imagem grande é escaneada. Ela é lida com
    Tesseract (WebAssembly, no próprio aparelho, modelo `por` baixado do CDN na
    primeira vez) e as linhas reconhecidas seguem pelo mesmo pipeline. Se o OCR
    quase não acha palavras, a página era uma ilustração inteira e vira imagem.
+   Página com texto ilegível (fonte sem tabela de caracteres: símbolos, glifos
+   privados, quase sem vogais — ver `looksGarbled`) também vai para o OCR.
 5. `upload.ts` envia `original.pdf`, `content.txt`, `cover.webp` (gerada a partir da
    1ª página, se o usuário não mandar uma) e `images/*` para
    `books/{user_id}/{book_id}/` e só então grava a linha em `books`.
