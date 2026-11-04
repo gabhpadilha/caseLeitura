@@ -21,3 +21,11 @@
 - **Next.js:** Separar claramente Server Components (para listagem da galeria inicial) e Client Components (para o visualizador do PDF e interações de UI usando `'use client'`).
 - **Estilização:** Utilizar exclusivamente Tailwind CSS.
 - **Idioma da UI:** Português do Brasil (pt-BR).
+
+## Economia de Contexto
+- Antes de ler um arquivo inteiro, procure com grep e leia apenas o que precisar.
+- Para explorar o projeto, use um subagente e traga-me apenas o resumo.
+- Mostre-me o diff, não o arquivo completo.
+- Não repita o que já decidimos nesta sessão.
+- Se mudarmos de tarefa, proponha /compact ou uma nova sessão.
+- Respostas curtas por padrão.
