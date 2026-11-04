@@ -61,6 +61,27 @@ const SCANNED_MAX_CHARS = 20;
 const SCANNED_MIN_IMAGE_AREA = 0.5;
 /** OCR que acha menos palavras que isso numa página: era uma ilustração de página inteira. */
 const OCR_MIN_WORDS = 12;
+/**
+ * Livro digital: pelo menos essa fração das páginas tem texto. Nele, uma página
+ * só de imagem é de design (capa, epígrafe, abertura de parte, mapa) e vira
+ * ilustração inteira; o OCR leria só ruído das fotos e texturas.
+ */
+const DIGITAL_MIN_TEXT_PAGES = 0.5;
+/** Página com uma imagem enorme e menos letras que isso é uma página de foto. */
+const PICTURE_PAGE_MAX_CHARS = 300;
+
+/** Fração das páginas com camada de texto (passada rápida, só o texto). */
+async function textPageShare(doc: PDFDocumentProxy): Promise<number> {
+  let withText = 0;
+  for (let n = 1; n <= doc.numPages; n++) {
+    const page = await doc.getPage(n);
+    const { items } = await page.getTextContent();
+    const chars = items.reduce((sum, item) => sum + (isTextItem(item) ? item.str.replace(/\s/g, "").length : 0), 0);
+    if (chars >= SCANNED_MAX_CHARS) withText++;
+    page.cleanup();
+  }
+  return withText / doc.numPages;
+}
 
 let pdfjsPromise: Promise<typeof import("pdfjs-dist")> | null = null;
 
@@ -199,13 +220,16 @@ export async function extractPdfText(
   try {
     const pages: RawLine[][] = [];
     const illustrations: Illustration[][] = [];
+    const digital = (await textPageShare(doc)) >= DIGITAL_MIN_TEXT_PAGES;
 
     for (let n = 1; n <= doc.numPages; n++) {
       const page = await doc.getPage(n);
       let lines = await pageToLines(page);
       const images = await findPageImages(page, OPS);
       const chars = lines.reduce((sum, l) => sum + l.text.replace(/\s/g, "").length, 0);
-      let pictures = illustrationCandidates(page, images);
+      // Num livro digital, imagem de página inteira com pouco texto (a legenda) é
+      // uma foto do caderno de imagens, não o fundo da página.
+      let pictures = illustrationCandidates(page, images, { allowFullPage: digital && chars < PICTURE_PAGE_MAX_CHARS });
 
       // Fonte sem tabela de caracteres: o texto sai em símbolos. O OCR lê o que está desenhado.
       const pageText = lines.map((l) => l.text).join(" ");
@@ -223,6 +247,10 @@ export async function extractPdfText(
           lines = result.lines;
           ocrPages++;
         }
+      } else if (chars < SCANNED_MAX_CHARS && largestImageArea(page, images) >= SCANNED_MIN_IMAGE_AREA && digital) {
+        // Página de design num livro digital: a imagem inteira, sem OCR.
+        pictures = illustrationCandidates(page, images, { allowFullPage: true });
+        lines = [];
       } else if (chars < SCANNED_MAX_CHARS && largestImageArea(page, images) >= SCANNED_MIN_IMAGE_AREA) {
         if (!ocr) {
           onProgress?.({ page: n, totalPages: doc.numPages, phase: "ocr-setup" });

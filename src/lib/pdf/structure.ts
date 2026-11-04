@@ -71,7 +71,9 @@ export function headingLevel(text: string, size: number, body: number): HeadingL
   const ratio = size / body;
   if (ratio >= 1.7) return 1;
   if (ratio >= 1.35) return 2;
-  if (ratio >= 1.15) return 3;
+  // 1.12: o corpo é arredondado para 0,5 pt (14,4 vira 14,5), e títulos de
+  // capítulo 15% maiores (16,6 pt) ficavam logo abaixo de 1.15.
+  if (ratio >= 1.12) return 3;
   return 0;
 }
 

@@ -83,6 +83,10 @@ O texto é extraído **no navegador**, antes do upload:
    quase não acha palavras, a página era uma ilustração inteira e vira imagem.
    Página com texto ilegível (fonte sem tabela de caracteres: símbolos, glifos
    privados, quase sem vogais — ver `looksGarbled`) também vai para o OCR.
+   Livro digital (metade ou mais das páginas com texto) não usa OCR nas páginas só
+   de imagem: são capa, epígrafes, aberturas de parte e mapas, e viram ilustrações
+   inteiras. O OCR descarta linhas de ruído (`wordQuality`) e só substitui o texto
+   do PDF quando lê claramente melhor.
 5. `upload.ts` envia `original.pdf`, `content.txt`, `cover.webp` (gerada a partir da
    1ª página, se o usuário não mandar uma) e `images/*` para
    `books/{user_id}/{book_id}/` e só então grava a linha em `books`.

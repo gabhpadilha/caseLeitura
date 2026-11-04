@@ -34,10 +34,17 @@ function insideFigure(line: RawLine, fig: PdfRect, body: number): boolean {
   return overlap > (line.x1 - line.x0) * 0.5;
 }
 
+/**
+ * A linha pertence à coluna da figura: contida na largura dela ou centralizada
+ * sob ela (a legenda de um retrato estreito costuma ser mais larga que a foto).
+ */
 function withinWidth(line: RawLine, fig: PdfRect): boolean {
   if (line.x0 === undefined || line.x1 === undefined) return true;
-  const slack = (fig.right - fig.left) * 0.15;
-  return line.x0 >= fig.left - slack && line.x1 <= fig.right + slack;
+  const width = fig.right - fig.left;
+  const slack = width * 0.15;
+  if (line.x0 >= fig.left - slack && line.x1 <= fig.right + slack) return true;
+  const center = (line.x0 + line.x1) / 2;
+  return Math.abs(center - (fig.left + fig.right) / 2) <= width * 0.15;
 }
 
 /** Linhas que formam a legenda a partir de `start`, andando para longe da figura. */
