@@ -280,6 +280,13 @@ export type Database = {
           },
         ];
       };
+      /** Só pelas funções notifications/unread_notifications/mark_notifications_seen. */
+      notification_reads: {
+        Row: { user_id: string; seen_at: string };
+        Insert: { user_id?: string; seen_at?: string };
+        Update: { user_id?: string; seen_at?: string };
+        Relationships: [];
+      };
     };
     Views: { [_ in never]: never };
     Functions: {
@@ -327,6 +334,28 @@ export type Database = {
           updated_at: string;
           comment_count: number;
         }[];
+      };
+      notifications: {
+        Args: { p_limit?: number };
+        Returns: {
+          comment_id: string;
+          review_id: string;
+          book_id: string;
+          book_title: string;
+          author_id: string;
+          author_name: string | null;
+          excerpt: string;
+          created_at: string;
+          unread: boolean;
+        }[];
+      };
+      unread_notifications: {
+        Args: Record<PropertyKey, never>;
+        Returns: number;
+      };
+      mark_notifications_seen: {
+        Args: Record<PropertyKey, never>;
+        Returns: undefined;
       };
       review_post: {
         Args: { p_review: string };

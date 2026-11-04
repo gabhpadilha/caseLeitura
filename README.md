@@ -174,9 +174,13 @@ Regras aplicadas no banco (`supabase/migrations/20261103000000_community.sql`):
   `timeline()`.
 
 Telas: `/timeline` (resenhas compartilhadas, paginação por `?antes=`; spoiler borrado até tocar),
-`/leitores` (cada leitor com o que está lendo) e `/leitores/[id]` (estante pública e resenhas, sem ler
-nem baixar).
+`/leitores` (cada leitor com o que está lendo, busca por nome em `?q=`) e `/leitores/[id]` (estante
+pública com os mesmos filtros da página Livros e as resenhas, sem ler nem baixar).
 
 Comentários (`20261104000000_review_comments.sql`): só em resenha compartilhada; sem edição; apaga o autor
 ou o dono da resenha. A conversa fica em `/resenha/[id]`; timeline, estantes e a página do livro mostram a
 contagem.
+
+Notificações (`20261105000000_notifications.sql`): quem tem a resenha comentada por outra pessoa vê o
+número no sino do topo e a lista em `/notificacoes`. Não há tabela de notificações: são os próprios
+comentários; `notification_reads` guarda só até quando cada um já viu (fora de `profiles`, que todos leem).

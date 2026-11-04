@@ -433,3 +433,37 @@ export async function getReviewThread(reviewId: string): Promise<ReviewThread | 
     })),
   };
 }
+
+export interface CommentNotification {
+  commentId: string;
+  reviewId: string;
+  bookTitle: string;
+  authorId: string;
+  authorName: string;
+  excerpt: string;
+  createdAt: string;
+  unread: boolean;
+}
+
+/**
+ * Comentários de outras pessoas nas minhas resenhas (o banco filtra pelo usuário).
+ * null quando a migração das notificações ainda não rodou.
+ */
+export async function getNotifications(): Promise<CommentNotification[] | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("notifications", { p_limit: 50 });
+  if (error) {
+    if (error.code === "PGRST202" || error.code === "42883") return null;
+    throw error;
+  }
+  return data.map((n) => ({
+    commentId: n.comment_id,
+    reviewId: n.review_id,
+    bookTitle: n.book_title,
+    authorId: n.author_id,
+    authorName: n.author_name?.trim() || UNNAMED_READER,
+    excerpt: n.excerpt,
+    createdAt: n.created_at,
+    unread: n.unread,
+  }));
+}

@@ -49,7 +49,11 @@ async function Thread({ params }: Pick<PageProps<"/resenha/[reviewId]">, "params
         {comments.length > 0 && (
           <ul className="space-y-3">
             {comments.map((c) => (
-              <li key={c.id} className="flex gap-3 rounded-3xl bg-paper-soft p-4 ring-1 ring-ink/5">
+              <li
+                key={c.id}
+                id={`comentario-${c.id}`}
+                className="flex scroll-mt-6 gap-3 rounded-3xl bg-paper-soft p-4 ring-1 ring-ink/5 target:ring-2 target:ring-coral/50"
+              >
                 <Link href={`/leitores/${c.userId}`} aria-label={c.userName}>
                   <Avatar name={c.userName} seed={c.userId} className="size-9 text-sm" />
                 </Link>
