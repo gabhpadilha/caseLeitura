@@ -1,7 +1,14 @@
 // Só roda no browser (usa worker e canvas). Importe apenas de Client Components.
 import type { PDFDocumentProxy, PDFPageProxy } from "pdfjs-dist";
 import type { TextItem, TextMarkedContent } from "pdfjs-dist/types/src/display/api";
-import { cleanExtractedText, countWords, looksGarbled, normalizeChars, stripRunningHeaders } from "./clean-text";
+import {
+  cleanExtractedText,
+  countWords,
+  looksGarbled,
+  normalizeChars,
+  stripRunningHeaders,
+  wordQuality,
+} from "./clean-text";
 import { separateFigureText } from "./figures";
 import {
   cropIllustrations,
@@ -201,7 +208,8 @@ export async function extractPdfText(
       let pictures = illustrationCandidates(page, images);
 
       // Fonte sem tabela de caracteres: o texto sai em símbolos. O OCR lê o que está desenhado.
-      const garbled = looksGarbled(lines.map((l) => l.text).join(" "));
+      const pageText = lines.map((l) => l.text).join(" ");
+      const garbled = looksGarbled(pageText);
       if (garbled) {
         if (!ocr) {
           onProgress?.({ page: n, totalPages: doc.numPages, phase: "ocr-setup" });
@@ -209,7 +217,9 @@ export async function extractPdfText(
         }
         onProgress?.({ page: n, totalPages: doc.numPages, phase: "ocr" });
         const result = await ocr.recognize(page);
-        if (result.words >= OCR_MIN_WORDS) {
+        // Só troca quando o OCR leu claramente melhor que o texto do PDF.
+        const ocrText = result.lines.map((l) => l.text).join(" ");
+        if (result.words >= OCR_MIN_WORDS && wordQuality(ocrText) > wordQuality(normalizeChars(pageText)) + 0.15) {
           lines = result.lines;
           ocrPages++;
         }

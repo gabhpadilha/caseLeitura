@@ -168,6 +168,28 @@ export function looksGarbled(text: string): boolean {
   );
 }
 
+/**
+ * Fração das "palavras" de um texto que parecem palavras de verdade: letras,
+ * com vogal (ou palavra de uma letra só, como "a", "é"). OCR de manchas,
+ * fotos e ornamentos produz coisas como `TE "USE rm % "TH`, que pontuam baixo.
+ */
+export function wordQuality(text: string): number {
+  const tokens = text
+    .split(/\s+/)
+    .map((t) => t.replace(/^[«“"'‘(\[—–-]+|[»”"'’)\].,;:!?…—–-]+$/gu, ""))
+    .filter(Boolean);
+  if (tokens.length === 0) return 0;
+  const good = tokens.filter((t) => {
+    if (/^\d+(?:[.,]\d+)*%?$/.test(t)) return true; // números (anos, páginas)
+    if (!/^\p{L}[\p{L}'’-]*$/u.test(t)) return false;
+    if (t.length === 1) return /^[aeoéààÉAEOÀ]$/u.test(t);
+    // Vogal latina, ou outra escrita (russo etc.); sem maiúsculas no meio ("GQue").
+    const vowel = /[aeiouyáàâãéêíóôõúü]/iu.test(t) || !/\p{Script=Latin}/u.test(t);
+    return vowel && !/^\p{Lu}{2}\p{Ll}/u.test(t);
+  }).length;
+  return good / tokens.length;
+}
+
 function headerKey(line: string): string {
   // Números variam entre páginas ("Capítulo 3 · 41"), então viram curinga.
   return line

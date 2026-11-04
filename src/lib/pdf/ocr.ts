@@ -1,12 +1,15 @@
 // Só roda no browser. OCR de páginas escaneadas com Tesseract (WebAssembly, no próprio aparelho).
 import type { PDFPageProxy } from "pdfjs-dist";
 import type { Worker } from "tesseract.js";
+import { wordQuality } from "./clean-text";
 import type { RawLine } from "./structure";
 
 /** Largura da imagem enviada ao OCR: ~300 dpi numa página A5, sem estourar a memória do iPad. */
 const OCR_WIDTH = 2000;
 /** Linhas com confiança menor que isso costumam ser manchas, ilustrações ou bordas. */
-const MIN_CONFIDENCE = 45;
+const MIN_CONFIDENCE = 60;
+/** Linha em que menos da metade parece palavra: OCR de foto, ornamento ou textura. */
+const MIN_WORD_QUALITY = 0.6;
 /** Salto entre linhas (em alturas de linha) a partir do qual há um parágrafo. */
 const PARAGRAPH_GAP = 1.9;
 
@@ -61,7 +64,13 @@ async function recognizePage(worker: Worker, page: PDFPageProxy): Promise<OcrPag
   const found = (data.blocks ?? []).flatMap((block) =>
     block.paragraphs.flatMap((paragraph) =>
       paragraph.lines
-        .filter((line) => line.confidence >= MIN_CONFIDENCE && /\p{L}/u.test(line.text))
+        .filter(
+          (line) =>
+            // Pelo menos uma palavra de 3+ letras: "E) id" e "6 LA: bo Ho" são ruído.
+            line.confidence >= MIN_CONFIDENCE &&
+            /\p{L}{3}/u.test(line.text) &&
+            wordQuality(line.text) >= MIN_WORD_QUALITY,
+        )
         .map((line, i) => ({
           text: line.text.replace(/\s+/g, " ").trim(),
           // Altura da linha sem ascendentes/descendentes: estável para o mesmo corpo de fonte.
