@@ -1,11 +1,12 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Plus } from "lucide-react";
-import { BancaSkeleton, ComicContinue, ComicRack, NEW_COMIC_HREF } from "@/components/comics/Banca";
+import { BancaSkeleton, ComicContinue, ComicRack } from "@/components/comics/Banca";
+import { LibraryFilters } from "@/components/gallery/LibraryFilters";
+import { applyGalleryFilters, galleryHref, parseGalleryFilters } from "@/lib/books/gallery";
 import { getUserName, listBookCards } from "@/lib/books/queries";
-import { sortForGallery, sortForShelf } from "@/lib/books/shelves";
-import { SHELVES, type BookCard } from "@/types/book";
+import { sortForShelf } from "@/lib/books/shelves";
+import type { BookCard } from "@/types/book";
 
 export const metadata: Metadata = { title: "Quadrinhos · caseLeitura" };
 
@@ -35,13 +36,9 @@ const EMPTY: Record<string, string> = {
 
 async function Banca({ searchParams }: Pick<PageProps<"/quadrinhos">, "searchParams">) {
   const [params, comics, name] = await Promise.all([searchParams, listBookCards("comic"), getUserName()]);
-  const estado = Array.isArray(params.estado) ? params.estado[0] : params.estado;
-  const shelf = SHELVES.find((s) => s.slug === estado) ?? null;
-  const shown = sortForGallery(shelf ? comics.filter((c) => c.status === shelf.status) : comics);
-  const tabs = [
-    { slug: null, label: "Todos", count: comics.length },
-    ...SHELVES.map((s) => ({ slug: s.slug, label: s.short, count: comics.filter((c) => c.status === s.status).length })),
-  ];
+  // Mesmos filtros da página Livros (estado, ordem e busca na URL), sem categorias.
+  const filters = parseGalleryFilters(params, "/quadrinhos");
+  const view = applyGalleryFilters(comics, filters);
 
   return (
     <div className="space-y-10">
@@ -49,46 +46,31 @@ async function Banca({ searchParams }: Pick<PageProps<"/quadrinhos">, "searchPar
 
       {comics.length > 0 && (
         <section className="space-y-6">
-          <div className="space-y-3">
-            <div className="flex items-end justify-between gap-4">
-              <h1 className="font-display text-4xl font-medium sm:text-5xl">Meus quadrinhos</h1>
-              <Link
-                href={NEW_COMIC_HREF}
-                aria-label="Enviar gibi"
-                className="flex shrink-0 items-center gap-2 rounded-full bg-ink px-4 py-2.5 text-sm font-semibold text-paper hover:bg-ink/85"
-              >
-                <Plus className="size-4" aria-hidden />
-                <span className="hidden sm:inline">Enviar gibi</span>
-              </Link>
-            </div>
-            <nav
-              aria-label="Filtrar por estado"
-              className="-mx-5 flex gap-2 overflow-x-auto px-5 pt-3 [scrollbar-width:none] sm:mx-0 sm:px-0"
-            >
-              {tabs.map((tab) => {
-                const active = (shelf?.slug ?? null) === tab.slug;
-                return (
-                  <Link
-                    key={tab.label}
-                    href={tab.slug ? `/quadrinhos?estado=${tab.slug}` : "/quadrinhos"}
-                    aria-current={active ? "page" : undefined}
-                    className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
-                      active ? "bg-ink text-paper" : "bg-paper-soft ring-1 ring-ink/10 hover:ring-ink/30"
-                    }`}
-                  >
-                    {tab.label} <span className={active ? "text-paper/60" : "text-graphite"}>{tab.count}</span>
-                  </Link>
-                );
-              })}
-            </nav>
-          </div>
+          <LibraryFilters filters={filters} view={view} title="Meus quadrinhos" categories={false} sortOnRead />
+          {filters.query && (
+            <p className="text-sm text-graphite">
+              {view.books.length} {view.books.length === 1 ? "gibi" : "gibis"} para “{filters.query}”
+            </p>
+          )}
 
-          {shown.length === 0 ? (
+          {view.books.length === 0 ? (
             <div className="rounded-[2rem] bg-paper-soft px-8 py-14 text-center">
-              <p className="mx-auto max-w-md text-graphite">{EMPTY[shelf?.slug ?? ""] ?? "Nenhum gibi por aqui."}</p>
+              <p className="mx-auto max-w-md text-graphite">
+                {filters.query
+                  ? "Nenhum gibi com essa busca."
+                  : (EMPTY[filters.shelf?.slug ?? ""] ?? "Nenhum gibi por aqui.")}
+              </p>
+              {filters.query && (
+                <Link
+                  href={galleryHref(filters, { q: null })}
+                  className="mt-5 inline-flex rounded-full px-5 py-2.5 text-sm font-medium ring-1 ring-ink/30 hover:bg-white"
+                >
+                  Limpar busca
+                </Link>
+              )}
             </div>
           ) : (
-            <ComicRack comics={shown} />
+            <ComicRack comics={view.books} />
           )}
         </section>
       )}

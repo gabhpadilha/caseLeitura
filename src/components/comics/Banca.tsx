@@ -8,7 +8,7 @@ import { continueCard } from "@/components/gallery/ContinueReading";
 import { BADGE_CLASSES } from "@/components/gallery/StatusBadge";
 import { READING_STATUS_LABEL, type BookCard } from "@/types/book";
 
-export const NEW_COMIC_HREF = "/livros/novo?tipo=quadrinho";
+const NEW_COMIC_HREF = "/livros/novo?tipo=quadrinho";
 
 // Capas sem imagem: os tons de encadernação da biblioteca, sorteados pelo id.
 const PLAIN = ["bg-[#A34E3A]", "bg-[#23314A]", "bg-[#2E4A3F]", "bg-[#8A5F24]", "bg-[#4A3049]", "bg-[#3D6F6B]"];

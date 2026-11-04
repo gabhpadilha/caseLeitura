@@ -86,7 +86,7 @@ enviados antes ganham ilustrações e OCR pelo botão "Reprocessar texto".
 `/quadrinhos` é a banca: página só dos gibis, dentro do layout da biblioteca e com a
 mesma paleta e tipografia. O clima de revistaria fica nos detalhes (`components/comics/Banca.tsx`):
 toldo listrado, expositor com prateleiras de madeira, etiqueta de preço com o estado e
-progresso em quadros. Filtro de estado em `?estado=`, como em Livros. Quadrinhos ficam na mesma
+progresso em quadros. Busca, estado e ordem na URL com o mesmo `LibraryFilters` da página Livros (sem categorias). Quadrinhos ficam na mesma
 tabela `books`, com `kind = 'comic'` (migration `20261030000000_comics.sql`).
 
 - **Envio** (`lib/comics/upload.ts`): não há extração de texto. PDF → cada página
