@@ -1,0 +1,31 @@
+-- EXEMPLO (não é migration executável: precisa de segredo e do id do projeto).
+-- Rode manualmente no SQL Editor depois de seguir o README da função
+-- supabase/functions/cleanup-orphans/README.md.
+--
+-- Pré-requisitos:
+--   1. Painel > Database > Extensions: ativar pg_cron e pg_net.
+--   2. Segredo no Vault (mesmo valor de `supabase secrets set CLEANUP_SECRET=...`):
+--        select vault.create_secret('<VALOR_DO_SEGREDO>', 'cleanup_secret');
+--      Faça isso uma única vez, direto no SQL Editor; não salve o valor em arquivo.
+--   3. Trocar <PROJECT_REF> abaixo (Configurações do projeto > Geral).
+
+-- Tira o agendamento antigo, se existir (torna o script reexecutável).
+select cron.unschedule(jobid) from cron.job where jobname = 'cleanup-orphans-daily';
+
+-- Todo dia às 06:17 UTC (03:17 em Brasília): chama a função com o segredo lido do Vault.
+select cron.schedule(
+  'cleanup-orphans-daily',
+  '17 6 * * *',
+  $job$
+  select net.http_post(
+    url     := 'https://<PROJECT_REF>.supabase.co/functions/v1/cleanup-orphans',
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'x-cleanup-secret',
+        (select decrypted_secret from vault.decrypted_secrets where name = 'cleanup_secret')
+    ),
+    body    := '{}'::jsonb,
+    timeout_milliseconds := 55000
+  );
+  $job$
+);

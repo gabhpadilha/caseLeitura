@@ -65,11 +65,11 @@ language sql
 immutable
 set search_path = ''
 as $$
-  select 209715200::bigint; -- 200 MB
+  select 104857600::bigint; -- 100 MB (100 * 1024 * 1024)
 $$;
 
 comment on function public.storage_quota_bytes() is
-  'Cota de espaço por usuário no bucket "books", em bytes (200 MB). Único lugar '
+  'Cota de espaço por usuário no bucket "books", em bytes (100 MB). Único lugar '
   'para mudar a cota no banco. O app tem uma constante espelho em '
   'src/lib/books/quota.ts que deve acompanhar este valor.';
 
