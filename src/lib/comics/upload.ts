@@ -1,5 +1,6 @@
 // Envio de quadrinho no browser: as páginas viram imagens (sem extrair texto).
 // PDF → cada página renderizada em WebP/JPEG; CBZ → as imagens do zip, sem recompressão.
+import { snapshotFile } from "@/lib/files/snapshot";
 import { strFromU8, unzip, type Unzipped } from "fflate";
 import { createClient } from "@/lib/supabase/client";
 import { documentParams, loadPdfjs, renderCover } from "@/lib/pdf/extract";
@@ -170,8 +171,10 @@ export async function uploadComic(
   const { data: auth, error: authError } = await supabase.auth.getUser();
   if (authError || !auth.user) throw new Error("Faça login para enviar quadrinhos.");
 
-  const cbz = isCbz(input.file);
-  const source = await readComicSource(input.file);
+  // Copia o arquivo para a memória: arquivos do Google Drive não podem ser lidos duas vezes.
+  const file = await snapshotFile(input.file);
+  const cbz = isCbz(file);
+  const source = await readComicSource(file);
   if (source.count === 0) throw new Error("Não encontramos páginas nesse arquivo.");
 
   const bookId = crypto.randomUUID();
@@ -207,9 +210,9 @@ export async function uploadComic(
 
     // 2. Original e capa.
     onStage?.("saving");
-    cover ??= await renderCover(input.file, COVER_WIDTH);
+    cover ??= await renderCover(file, COVER_WIDTH);
     await Promise.all([
-      upload(original, input.file, cbz ? "application/zip" : "application/pdf"),
+      upload(original, file, cbz ? "application/zip" : "application/pdf"),
       cover ? upload(paths.cover, cover, cover.type || "image/webp") : null,
     ]);
 
@@ -220,7 +223,7 @@ export async function uploadComic(
         id: bookId,
         kind: "comic",
         title:
-          input.title?.trim() || source.meta.title || input.file.name.replace(/\.(pdf|cbz)$/i, ""),
+          input.title?.trim() || source.meta.title || file.name.replace(/\.(pdf|cbz)$/i, ""),
         author: input.author?.trim() || source.meta.author,
         pdf_path: original,
         cover_path: cover ? paths.cover : null,

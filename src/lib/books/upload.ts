@@ -6,6 +6,7 @@ import {
   type ExtractProgress,
 } from "@/lib/pdf/extract";
 import { normalizeCategories } from "@/lib/books/categories";
+import { snapshotFile } from "@/lib/files/snapshot";
 import { createClient } from "@/lib/supabase/client";
 import { BOOKS_BUCKET, bookStoragePaths, type Book } from "@/types/book";
 
@@ -121,9 +122,12 @@ export async function uploadBook(
   const { data: auth, error: authError } = await supabase.auth.getUser();
   if (authError || !auth.user) throw new Error("Faça login para enviar livros.");
 
+  // Copia o arquivo para a memória: arquivos do Google Drive não podem ser lidos duas vezes.
+  const file = await snapshotFile(input.file);
+
   // Avisa já, em português, em vez de gastar a leitura do PDF e ser recusado no envio.
-  if (input.file.size > MAX_UPLOAD_BYTES) {
-    const mb = Math.round(input.file.size / 1024 / 1024);
+  if (file.size > MAX_UPLOAD_BYTES) {
+    const mb = Math.round(file.size / 1024 / 1024);
     throw new Error(
       `Este arquivo tem ${mb} MB e o limite é ${MAX_UPLOAD_BYTES / 1024 / 1024} MB. Reduza o PDF e tente de novo.`,
     );
@@ -131,8 +135,8 @@ export async function uploadBook(
 
   // 1. Extração local: falha rápido, antes de gastar upload.
   onStage?.("extracting");
-  const extracted = await extractPdfText(input.file, onExtractProgress);
-  const cover = input.cover ?? (await renderCover(input.file));
+  const extracted = await extractPdfText(file, onExtractProgress);
+  const cover = input.cover ?? (await renderCover(file));
 
   // 2. Storage. O id é gerado aqui para montar os caminhos antes do insert.
   onStage?.("uploading");
@@ -141,7 +145,7 @@ export async function uploadBook(
   const bucket = supabase.storage.from(BOOKS_BUCKET);
 
   const uploads = [
-    uploadWithRetry(bucket, paths.pdf, input.file, { contentType: "application/pdf" }),
+    uploadWithRetry(bucket, paths.pdf, file, { contentType: "application/pdf" }),
     extracted.hasTextLayer
       ? uploadWithRetry(bucket, paths.content, new Blob([extracted.text], { type: "text/plain" }), CONTENT_UPLOAD)
       : null,
@@ -172,7 +176,7 @@ export async function uploadBook(
     .from("books")
     .insert({
       id: bookId,
-      title: input.title?.trim() || extracted.title || input.file.name.replace(/\.pdf$/i, ""),
+      title: input.title?.trim() || extracted.title || file.name.replace(/\.pdf$/i, ""),
       author: input.author?.trim() || extracted.author,
       pdf_path: paths.pdf,
       cover_path: cover ? paths.cover : null,
