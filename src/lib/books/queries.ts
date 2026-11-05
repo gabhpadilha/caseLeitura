@@ -1,6 +1,7 @@
 import "server-only";
 
 import { cache } from "react";
+import { listParts } from "@/lib/books/original";
 import { createClient } from "@/lib/supabase/server";
 import {
   BOOKS_BUCKET,
@@ -136,10 +137,16 @@ export async function getBookDetail(bookId: string): Promise<BookDetail | null> 
       : null,
   ]);
 
+  // Sem link direto: o original pode ter sido enviado em partes (arquivo grande).
+  const originalInParts = pdf.data?.signedUrl
+    ? false
+    : (await listParts(bucket, book.pdf_path)).length > 0;
+
   return {
     book,
     coverUrl: book.cover_path ? (covers.get(book.cover_path) ?? null) : null,
     pdfUrl: pdf.data?.signedUrl ?? null,
+    originalInParts,
     review,
     commentCount: comments?.count ?? 0,
   };

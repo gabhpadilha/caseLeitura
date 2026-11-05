@@ -66,6 +66,8 @@ export interface BookDetail {
   coverUrl: string | null;
   /** Signed URL que força o download do PDF original. */
   pdfUrl: string | null;
+  /** O original foi enviado em partes (arquivo grande): o download junta os pedaços. */
+  originalInParts: boolean;
   review: Review | null;
   /** Comentários na resenha (0 sem resenha). */
   commentCount: number;

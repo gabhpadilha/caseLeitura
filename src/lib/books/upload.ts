@@ -7,6 +7,7 @@ import {
 } from "@/lib/pdf/extract";
 import { normalizeCategories } from "@/lib/books/categories";
 import { snapshotFile } from "@/lib/files/snapshot";
+import { downloadOriginal, MAX_FILE_BYTES, partPath, splitInParts, PART_BYTES } from "@/lib/books/original";
 import { createClient } from "@/lib/supabase/client";
 import { BOOKS_BUCKET, bookStoragePaths, type Book } from "@/types/book";
 
@@ -19,9 +20,6 @@ const CONTENT_UPLOAD = { contentType: "text/plain; charset=utf-8", cacheControl:
 const IMAGE_UPLOAD_CONCURRENCY = 4;
 
 type Bucket = ReturnType<ReturnType<typeof createClient>["storage"]["from"]>;
-
-/** Limite de envio do Storage no plano gratuito (igual ao do bucket `books`). */
-export const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
 
 /** Tentativas por arquivo e espera (ms) entre elas, para quedas curtas de rede. */
 const UPLOAD_ATTEMPTS = 3;
@@ -49,7 +47,7 @@ export function friendlyUploadError(error: StorageFailure): string {
     return "A conexão com a internet falhou durante o envio. Confira o Wi-Fi ou os dados e tente de novo.";
   }
   if (code === 413 || /exceeded the maximum|too large/i.test(msg)) {
-    return `O arquivo passa do limite de ${MAX_UPLOAD_BYTES / 1024 / 1024} MB. Reduza o PDF e tente de novo.`;
+    return "O arquivo é grande demais para o envio. Reduza o PDF e tente de novo.";
   }
   if (code === 415 || /mime type|not supported/i.test(msg)) {
     return "Esse formato de arquivo não é aceito. Envie um PDF.";
@@ -74,6 +72,32 @@ async function uploadWithRetry(
     result = await bucket.upload(path, body, { ...options, upsert: true });
   }
   return result;
+}
+
+/**
+ * Envia o arquivo original. Se passar do tamanho de uma parte, corta em pedaços e
+ * envia um a um (`original.pdf.part001`…); `sent` recebe cada caminho enviado, para
+ * quem chama poder desfazer tudo se algo falhar.
+ */
+export async function uploadOriginal(
+  bucket: Bucket,
+  path: string,
+  file: File,
+  contentType: string,
+  sent: string[],
+) {
+  if (file.size <= PART_BYTES) {
+    sent.push(path);
+    return uploadWithRetry(bucket, path, file, { contentType });
+  }
+  const parts = splitInParts(file);
+  for (let i = 0; i < parts.length; i++) {
+    const target = partPath(path, i);
+    sent.push(target);
+    const result = await uploadWithRetry(bucket, target, parts[i], { contentType });
+    if (result.error) return result;
+  }
+  return { data: { path }, error: null };
 }
 
 /** Envia as ilustrações para `folder`, em lotes. Devolve os caminhos enviados. */
@@ -126,10 +150,10 @@ export async function uploadBook(
   const file = await snapshotFile(input.file);
 
   // Avisa já, em português, em vez de gastar a leitura do PDF e ser recusado no envio.
-  if (file.size > MAX_UPLOAD_BYTES) {
+  if (file.size > MAX_FILE_BYTES) {
     const mb = Math.round(file.size / 1024 / 1024);
     throw new Error(
-      `Este arquivo tem ${mb} MB e o limite é ${MAX_UPLOAD_BYTES / 1024 / 1024} MB. Reduza o PDF e tente de novo.`,
+      `Este arquivo tem ${mb} MB e o limite é ${MAX_FILE_BYTES / 1024 / 1024} MB. Reduza o PDF e tente de novo.`,
     );
   }
 
@@ -144,8 +168,9 @@ export async function uploadBook(
   const paths = bookStoragePaths(auth.user.id, bookId);
   const bucket = supabase.storage.from(BOOKS_BUCKET);
 
+  const originalSent: string[] = [];
   const uploads = [
-    uploadWithRetry(bucket, paths.pdf, file, { contentType: "application/pdf" }),
+    uploadOriginal(bucket, paths.pdf, file, "application/pdf", originalSent),
     extracted.hasTextLayer
       ? uploadWithRetry(bucket, paths.content, new Blob([extracted.text], { type: "text/plain" }), CONTENT_UPLOAD)
       : null,
@@ -165,7 +190,7 @@ export async function uploadBook(
   }
   const uploadError = failed?.error ?? (imageError ? { message: imageError } : null);
   if (uploadError) {
-    await bucket.remove([paths.pdf, paths.cover, paths.content, ...imagePaths]);
+    await bucket.remove([...originalSent, paths.cover, paths.content, ...imagePaths]);
     throw new Error(friendlyUploadError(uploadError));
   }
 
@@ -192,7 +217,7 @@ export async function uploadBook(
     .single();
 
   if (error) {
-    await bucket.remove([paths.pdf, paths.cover, paths.content, ...imagePaths]);
+    await bucket.remove([...originalSent, paths.cover, paths.content, ...imagePaths]);
     throw new Error(`Falha ao salvar o livro: ${error.message}`);
   }
   return book;
@@ -212,8 +237,8 @@ export async function reprocessBook(
   if (authError || !auth.user) throw new Error("Faça login para reprocessar o livro.");
 
   const bucket = supabase.storage.from(BOOKS_BUCKET);
-  const { data: pdf, error: downloadError } = await bucket.download(book.pdf_path);
-  if (downloadError || !pdf) throw new Error("Não foi possível baixar o PDF original.");
+  const pdf = await downloadOriginal(bucket, book.pdf_path);
+  if (!pdf) throw new Error("Não foi possível baixar o PDF original.");
 
   const extracted = await extractPdfText(pdf, onExtractProgress);
   const paths = bookStoragePaths(auth.user.id, book.id);

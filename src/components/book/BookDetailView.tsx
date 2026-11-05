@@ -7,6 +7,7 @@ import { formatDate, formatPercent, readingDuration, readingTime } from "@/lib/b
 import { isComic, type BookDetail } from "@/types/book";
 import { BookCategories } from "./BookCategories";
 import { DeleteBookButton } from "./DeleteBookButton";
+import { DownloadOriginalButton } from "./DownloadOriginalButton";
 import { EditBookButton } from "./EditBookButton";
 import { ReprocessButton } from "./ReprocessButton";
 import { ReviewCard } from "./ReviewCard";
@@ -25,7 +26,7 @@ function Chip({ children }: { children: ReactNode }) {
 
 /** Página do livro: capa grande, ação principal, nota, resenha e detalhes. */
 export function BookDetailView({ data }: BookDetailViewProps) {
-  const { book, coverUrl, pdfUrl, review, commentCount } = data;
+  const { book, coverUrl, pdfUrl, originalInParts, review, commentCount } = data;
   const readable = book.processing_status === "ready";
   const started = book.progress > 0;
   const finished = book.status === "finished";
@@ -119,7 +120,7 @@ export function BookDetailView({ data }: BookDetailViewProps) {
                 Ainda sem texto. Reprocesse para ler as páginas escaneadas.
               </p>
             )}
-            {pdfUrl && (
+            {pdfUrl ? (
               <a
                 href={pdfUrl}
                 title={`Baixar ${format} original`}
@@ -128,6 +129,15 @@ export function BookDetailView({ data }: BookDetailViewProps) {
               >
                 <Download className="size-[1.15rem]" aria-hidden />
               </a>
+            ) : (
+              originalInParts && (
+                <DownloadOriginalButton
+                  path={book.pdf_path}
+                  filename={`${book.title}.${book.pdf_path.split(".").pop() ?? "pdf"}`}
+                  format={format}
+                  className={circleButton}
+                />
+              )
             )}
             <EditBookButton book={book} className={circleButton} />
             <DeleteBookButton book={book} className={`${circleButton} hover:text-coral-dark`} />

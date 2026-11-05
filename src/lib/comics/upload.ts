@@ -1,6 +1,7 @@
 // Envio de quadrinho no browser: as páginas viram imagens (sem extrair texto).
 // PDF → cada página renderizada em WebP/JPEG; CBZ → as imagens do zip, sem recompressão.
 import { snapshotFile } from "@/lib/files/snapshot";
+import { friendlyUploadError, uploadOriginal } from "@/lib/books/upload";
 import { strFromU8, unzip, type Unzipped } from "fflate";
 import { createClient } from "@/lib/supabase/client";
 import { documentParams, loadPdfjs, renderCover } from "@/lib/pdf/extract";
@@ -212,7 +213,16 @@ export async function uploadComic(
     onStage?.("saving");
     cover ??= await renderCover(file, COVER_WIDTH);
     await Promise.all([
-      upload(original, file, cbz ? "application/zip" : "application/pdf"),
+      (async () => {
+        const { error } = await uploadOriginal(
+          bucket,
+          original,
+          file,
+          cbz ? "application/zip" : "application/pdf",
+          uploaded,
+        );
+        if (error) throw new Error(friendlyUploadError(error));
+      })(),
       cover ? upload(paths.cover, cover, cover.type || "image/webp") : null,
     ]);
 
