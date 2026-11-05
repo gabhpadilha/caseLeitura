@@ -3,13 +3,15 @@ import {
   extractPdfText,
   renderCover,
   type ExtractedImage,
+  type ExtractResult,
   type ExtractProgress,
 } from "@/lib/pdf/extract";
 import { normalizeCategories } from "@/lib/books/categories";
 import { snapshotFile } from "@/lib/files/snapshot";
+import { assertQuotaFits } from "@/lib/books/quota";
 import { downloadOriginal, MAX_FILE_BYTES, partPath, splitInParts, PART_BYTES } from "@/lib/books/original";
 import { createClient } from "@/lib/supabase/client";
-import { BOOKS_BUCKET, bookStoragePaths, type Book } from "@/types/book";
+import { BOOKS_BUCKET, bookStoragePaths, type Book, type BookUpdate } from "@/types/book";
 
 export type UploadStage = "extracting" | "uploading" | "saving";
 
@@ -52,7 +54,11 @@ export function friendlyUploadError(error: StorageFailure): string {
   if (code === 415 || /mime type|not supported/i.test(msg)) {
     return "Esse formato de arquivo não é aceito. Envie um PDF.";
   }
-  if (code === 401 || code === 403 || /row-level security|jwt|not authorized|unauthorized/i.test(msg)) {
+  // O freio do banco recusa o envio (RLS) quando a cota já foi passada; a sessão expirada cai aqui também.
+  if (code === 403 || /row-level security/i.test(msg)) {
+    return "O envio foi recusado: seu espaço pode estar cheio ou sua sessão expirou. Arquive livros já lidos para liberar espaço; se não resolver, saia, entre de novo e tente outra vez.";
+  }
+  if (code === 401 || /row-level security|jwt|not authorized|unauthorized/i.test(msg)) {
     return "Sua sessão expirou. Saia, entre de novo e tente outra vez.";
   }
   if (code >= 500) return "O servidor está instável agora. Aguarde um instante e tente de novo.";
@@ -82,7 +88,7 @@ async function uploadWithRetry(
 export async function uploadOriginal(
   bucket: Bucket,
   path: string,
-  file: File,
+  file: Blob,
   contentType: string,
   sent: string[],
 ) {
@@ -156,6 +162,9 @@ export async function uploadBook(
       `Este arquivo tem ${mb} MB e o limite é ${MAX_FILE_BYTES / 1024 / 1024} MB. Reduza o PDF e tente de novo.`,
     );
   }
+
+  // Cota: recusa antes de gastar a leitura do PDF (se a consulta falhar, o banco protege).
+  await assertQuotaFits(file.size);
 
   // 1. Extração local: falha rápido, antes de gastar upload.
   onStage?.("extracting");
@@ -232,7 +241,6 @@ export async function reprocessBook(
   onExtractProgress?: (p: ExtractProgress) => void,
 ): Promise<void> {
   const supabase = createClient();
-
   const { data: auth, error: authError } = await supabase.auth.getUser();
   if (authError || !auth.user) throw new Error("Faça login para reprocessar o livro.");
 
@@ -241,7 +249,23 @@ export async function reprocessBook(
   if (!pdf) throw new Error("Não foi possível baixar o PDF original.");
 
   const extracted = await extractPdfText(pdf, onExtractProgress);
-  const paths = bookStoragePaths(auth.user.id, book.id);
+  await saveExtraction(supabase, auth.user.id, book.id, extracted);
+}
+
+/**
+ * Grava o resultado da extração no livro existente: ilustrações e texto nos mesmos
+ * caminhos (bookStoragePaths) e a linha atualizada. Progresso, status e resenha
+ * não são tocados. `extra` entra no update da linha (ex.: zerar o arquivamento).
+ */
+export async function saveExtraction(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  bookId: string,
+  extracted: ExtractResult,
+  extra: BookUpdate = {},
+): Promise<void> {
+  const bucket = supabase.storage.from(BOOKS_BUCKET);
+  const paths = bookStoragePaths(userId, bookId);
 
   // As ilustrações antigas saem antes: os nomes mudam se a extração mudar.
   const oldImages = await listFolder(bucket, paths.images);
@@ -258,7 +282,7 @@ export async function reprocessBook(
       new Blob([extracted.text], { type: "text/plain" }),
       { ...CONTENT_UPLOAD, upsert: true },
     );
-    if (error) throw new Error(`Falha ao salvar o texto: ${error.message}`);
+    if (error) throw new Error(friendlyUploadError(error));
   }
 
   const { error } = await supabase
@@ -268,7 +292,8 @@ export async function reprocessBook(
       processing_status: extracted.hasTextLayer ? "ready" : "failed",
       page_count: extracted.pageCount,
       word_count: extracted.wordCount,
+      ...extra,
     })
-    .eq("id", book.id);
+    .eq("id", bookId);
   if (error) throw new Error(`Falha ao atualizar o livro: ${error.message}`);
 }

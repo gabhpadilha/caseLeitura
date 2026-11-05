@@ -1,6 +1,7 @@
 // Envio de quadrinho no browser: as páginas viram imagens (sem extrair texto).
 // PDF → cada página renderizada em WebP/JPEG; CBZ → as imagens do zip, sem recompressão.
 import { snapshotFile } from "@/lib/files/snapshot";
+import { assertQuotaFits } from "@/lib/books/quota";
 import { friendlyUploadError, uploadOriginal } from "@/lib/books/upload";
 import { strFromU8, unzip, type Unzipped } from "fflate";
 import { createClient } from "@/lib/supabase/client";
@@ -174,6 +175,8 @@ export async function uploadComic(
 
   // Copia o arquivo para a memória: arquivos do Google Drive não podem ser lidos duas vezes.
   const file = await snapshotFile(input.file);
+  // Cota: as páginas renderizadas pesam em torno do tamanho do arquivo, mais o original.
+  await assertQuotaFits(file.size);
   const cbz = isCbz(file);
   const source = await readComicSource(file);
   if (source.count === 0) throw new Error("Não encontramos páginas nesse arquivo.");
