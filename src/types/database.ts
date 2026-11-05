@@ -78,6 +78,8 @@ export type Database = {
           pdf_path: string;
           cover_path: string | null;
           content_path: string | null;
+          archived_at: string | null;
+          archive_level: "original" | "full" | null;
           page_count: number | null;
           word_count: number | null;
           progress: number;
@@ -100,6 +102,8 @@ export type Database = {
           pdf_path: string;
           cover_path?: string | null;
           content_path?: string | null;
+          archived_at?: string | null;
+          archive_level?: "original" | "full" | null;
           page_count?: number | null;
           word_count?: number | null;
           progress?: number;
@@ -122,6 +126,8 @@ export type Database = {
           pdf_path?: string;
           cover_path?: string | null;
           content_path?: string | null;
+          archived_at?: string | null;
+          archive_level?: "original" | "full" | null;
           page_count?: number | null;
           word_count?: number | null;
           progress?: number;
@@ -290,6 +296,14 @@ export type Database = {
     };
     Views: { [_ in never]: never };
     Functions: {
+      my_storage_usage: {
+        Args: Record<PropertyKey, never>;
+        Returns: { used_bytes: number; quota_bytes: number }[];
+      };
+      my_book_sizes: {
+        Args: Record<PropertyKey, never>;
+        Returns: { book_id: string; bytes: number }[];
+      };
       create_invite: {
         Args: Record<PropertyKey, never>;
         Returns: Database["public"]["Tables"]["invites"]["Row"];

@@ -10,6 +10,14 @@ export type BookKind = Enums<"book_kind">;
 
 export type Book = Tables<"books">;
 
+/** 'original': só o arquivo original saiu do Storage. 'full': também o texto, as ilustrações e as páginas. */
+export type ArchiveLevel = NonNullable<Book["archive_level"]>;
+
+/** Livro com o texto apagado do Storage: não abre no leitor até ser restaurado. */
+export function isFullyArchived(book: Pick<Book, "archive_level">): boolean {
+  return book.archive_level === "full";
+}
+
 /** Itens sem a coluna `kind` (banco antes da migration dos quadrinhos) são livros. */
 export function isComic(book: Pick<Book, "kind">): boolean {
   return book.kind === "comic";
@@ -42,6 +50,7 @@ export interface BookCard
     | "started_at"
     | "finished_at"
     | "categories"
+    | "archive_level"
   > {
   coverUrl: string | null;
   /** Nota da resenha (1–5), se houver. */

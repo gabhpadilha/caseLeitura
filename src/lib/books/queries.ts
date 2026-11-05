@@ -18,8 +18,9 @@ const SIGNED_URL_TTL = 60 * 60; // 1h
 const IMAGE_URL_TTL = 60 * 60 * 12;
 
 /** Linha de CARD_COLUMNS (sem `categories` antes da migration). */
-type BookCardRow = Omit<BookCard, "coverUrl" | "rating" | "review" | "categories"> & {
+type BookCardRow = Omit<BookCard, "coverUrl" | "rating" | "review" | "categories" | "archive_level"> & {
   categories?: string[];
+  archive_level?: BookCard["archive_level"];
   cover_path: string | null;
   reviews: { rating: number | null; content: string } | { rating: number | null; content: string }[] | null;
 };
@@ -37,8 +38,8 @@ async function signPaths(supabase: ServerClient, paths: (string | null)[]) {
 }
 
 const CARD_COLUMNS =
-  "id, title, author, status, progress, processing_status, page_count, word_count, last_read_at, created_at, started_at, finished_at, categories, cover_path, reviews(rating, content)";
-const LEGACY_CARD_COLUMNS = CARD_COLUMNS.replace("categories, ", "");
+  "id, title, author, status, progress, processing_status, page_count, word_count, last_read_at, created_at, started_at, finished_at, categories, archive_level, cover_path, reviews(rating, content)";
+const LEGACY_CARD_COLUMNS = CARD_COLUMNS.replace("categories, archive_level, ", "");
 
 /** Coluna inexistente: o banco ainda não recebeu uma migration (quadrinhos, categorias). */
 const UNDEFINED_COLUMN = "42703";
@@ -67,12 +68,13 @@ export async function listBookCards(kind: BookKind = "book"): Promise<BookCard[]
 
   const urlByPath = await signPaths(supabase, books.map((b) => b.cover_path));
 
-  return books.map(({ cover_path, reviews, categories, ...book }) => {
+  return books.map(({ cover_path, reviews, categories, archive_level, ...book }) => {
     // A resenha é 1:1 com o livro; o PostgREST pode devolver objeto ou lista.
     const review = Array.isArray(reviews) ? reviews[0] : reviews;
     return {
       ...book,
       categories: categories ?? [],
+      archive_level: archive_level ?? null,
       coverUrl: cover_path ? (urlByPath.get(cover_path) ?? null) : null,
       rating: review?.rating ?? null,
       review: review?.content.trim() || null,
