@@ -1,10 +1,10 @@
 import { Suspense } from "react";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { ComicReader } from "@/components/comics/ComicReader";
 import { Reader } from "@/components/reader/Reader";
 import { getComicPages, getReaderData } from "@/lib/books/queries";
-import { isComic } from "@/types/book";
+import { isComic, isFullyArchived } from "@/types/book";
 
 // Fora do grupo (biblioteca): o leitor ocupa a tela inteira, sem o header.
 // A página não aguarda `params`; isso acontece dentro do Suspense.
@@ -26,6 +26,9 @@ async function LeitorLoader({ params }: Pick<PageProps<"/leitor/[bookId]">, "par
   const { bookId } = await params;
   const data = await getReaderData(bookId);
   if (!data) notFound();
+
+  // Texto arquivado: a página do livro explica e oferece o restauro.
+  if (isFullyArchived(data.book)) redirect(`/livros/${data.book.id}`);
 
   // Quadrinho: páginas como imagens, sem texto.
   if (isComic(data.book)) {

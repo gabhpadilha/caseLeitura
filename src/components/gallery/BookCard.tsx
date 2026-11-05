@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Bookmark, BookOpen, CircleCheck, CircleSlash, Star, TriangleAlert } from "lucide-react";
+import { Archive, Bookmark, BookOpen, CircleCheck, CircleSlash, Star, TriangleAlert } from "lucide-react";
 import { formatPercent, formatRating, readingTime } from "@/lib/books/format";
 import type { BookCard as BookCardData, ReadingStatus } from "@/types/book";
 import { BookCover } from "./BookCover";
@@ -82,6 +82,7 @@ export function BookCard({ book, variant = "shelf", showStatus = false }: BookCa
     book.author && `de ${book.author}`,
     showStatus && `(${book.status === "reading" ? `lendo, ${formatPercent(book.progress)}` : book.status === "to_read" ? "quero ler" : book.status === "finished" ? "lido" : "abandonado"})`,
     book.processing_status !== "ready" && "sem texto extraível",
+    book.archive_level && "arquivado",
   ]
     .filter(Boolean)
     .join(", ");
@@ -102,6 +103,15 @@ export function BookCard({ book, variant = "shelf", showStatus = false }: BookCa
           seed={book.id}
           className="w-full group-focus-visible:outline-2 group-focus-visible:outline-offset-4 group-focus-visible:outline-coral"
         />
+        {book.archive_level && (
+          <span
+            title="Arquivado"
+            className="absolute right-2 bottom-2 inline-flex items-center gap-1 rounded-full bg-ink/80 px-2 py-0.5 text-[0.65rem] font-medium text-paper"
+          >
+            <Archive className="size-3" aria-hidden />
+            Arquivado
+          </span>
+        )}
         {showStatus && (
           <span className="absolute top-2 left-2 max-w-[calc(100%-1rem)]">
             <StatusSeal book={book} />

@@ -6,6 +6,7 @@ import { Loader2, LogOut } from "lucide-react";
 import { Modal, modalField, modalPrimaryButton, modalSecondaryButton } from "@/components/ui/Modal";
 import { createClient } from "@/lib/supabase/client";
 import { InviteSection } from "./InviteSection";
+import { StorageSection } from "./StorageSection";
 
 interface ProfileButtonProps {
   /** Nome exibido hoje (escolhido ou derivado do e-mail). */
@@ -99,6 +100,7 @@ export function ProfileButton({ name, displayName, email }: ProfileButtonProps) 
             Aparece na saudação e para os outros leitores, junto das resenhas que você compartilhar.
           </p>
           {error && <p className="text-sm text-coral-dark">{error}</p>}
+          <StorageSection open={open} onNavigate={() => setOpen(false)} />
           <InviteSection />
           <div className="mt-2 flex items-center gap-2">
             <button

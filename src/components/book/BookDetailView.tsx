@@ -1,15 +1,18 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { ArrowUpRight, ChevronLeft, Download, Star, TriangleAlert } from "lucide-react";
+import { Archive, ArrowUpRight, ChevronLeft, Download, Star, TriangleAlert } from "lucide-react";
 import { BookCover } from "@/components/gallery/BookCover";
 import { StatusBadge } from "@/components/gallery/StatusBadge";
 import { formatDate, formatPercent, readingDuration, readingTime } from "@/lib/books/format";
-import { isComic, type BookDetail } from "@/types/book";
+import { canArchiveFully } from "@/lib/books/archive";
+import { isComic, isFullyArchived, type BookDetail } from "@/types/book";
+import { ArchiveButton } from "./ArchiveButton";
 import { BookCategories } from "./BookCategories";
 import { DeleteBookButton } from "./DeleteBookButton";
 import { DownloadOriginalButton } from "./DownloadOriginalButton";
 import { EditBookButton } from "./EditBookButton";
 import { ReprocessButton } from "./ReprocessButton";
+import { RestoreBanner } from "./RestoreBanner";
 import { ReviewCard } from "./ReviewCard";
 import { StatusPicker } from "./StatusPicker";
 
@@ -27,7 +30,11 @@ function Chip({ children }: { children: ReactNode }) {
 /** Página do livro: capa grande, ação principal, nota, resenha e detalhes. */
 export function BookDetailView({ data }: BookDetailViewProps) {
   const { book, coverUrl, pdfUrl, originalInParts, review, commentCount } = data;
-  const readable = book.processing_status === "ready";
+  const archived = book.archive_level !== null;
+  const fullyArchived = isFullyArchived(book);
+  // Arquivado: sem texto ('full') ou sem original ('original'). Os botões que dependem deles somem.
+  const hasOriginal = !archived;
+  const readable = book.processing_status === "ready" && !fullyArchived;
   const started = book.progress > 0;
   const finished = book.status === "finished";
   const rating = review?.rating ?? null;
@@ -50,8 +57,12 @@ export function BookDetailView({ data }: BookDetailViewProps) {
   const finishedLabel = formatDate(book.finished_at);
   const duration = readingDuration(book.started_at, book.finished_at);
 
+  // Arquivar: livros ativos, ou já arquivados só do original (resta o arquivamento completo).
+  const canArchive = !archived || (book.archive_level === "original" && canArchiveFully(book));
+
   return (
     <article>
+      {archived && <RestoreBanner book={book} />}
       <Link
         href={comic ? "/quadrinhos" : "/"}
         className="inline-flex items-center gap-1 font-semibold text-coral-dark hover:underline"
@@ -114,13 +125,21 @@ export function BookDetailView({ data }: BookDetailViewProps) {
                 {action}
                 <ArrowUpRight className="size-4" aria-hidden />
               </Link>
+            ) : fullyArchived ? (
+              <a
+                href="#arquivado-titulo"
+                className="inline-flex items-center gap-2.5 rounded-full bg-ink px-7 py-3.5 font-medium text-paper transition-colors hover:bg-ink/85"
+              >
+                Restaurar para ler
+                <Archive className="size-4" aria-hidden />
+              </a>
             ) : (
               <p className="flex items-center gap-2 rounded-full bg-coral-soft px-4 py-2.5 text-sm text-coral-dark">
                 <TriangleAlert className="size-4" aria-hidden />
                 Ainda sem texto. Reprocesse para ler as páginas escaneadas.
               </p>
             )}
-            {pdfUrl ? (
+            {!hasOriginal ? null : pdfUrl ? (
               <a
                 href={pdfUrl}
                 title={`Baixar ${format} original`}
@@ -139,6 +158,7 @@ export function BookDetailView({ data }: BookDetailViewProps) {
                 />
               )
             )}
+            {canArchive && <ArchiveButton book={book} className={circleButton} />}
             <EditBookButton book={book} className={circleButton} />
             <DeleteBookButton book={book} className={`${circleButton} hover:text-coral-dark`} />
           </div>
@@ -164,7 +184,7 @@ export function BookDetailView({ data }: BookDetailViewProps) {
               </div>
             ))}
           </dl>
-          {!comic && (
+          {!comic && hasOriginal && (
             <div className="mt-8">
               <ReprocessButton book={book} />
             </div>
